@@ -12,10 +12,14 @@ SCRIPT_DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
 
 usage() {
   echo "Usage: $(basename "$0") <template> [workspace] [-- agent_args...]"
+  echo "       $(basename "$0") rm <template> [workspace]"
   echo ""
   echo "  template     Template directory name (e.g. python, jvm)"
   echo "  workspace    Workspace path (default: current directory)"
   echo "  -- args      Additional arguments passed to the agent"
+  echo ""
+  echo "Commands:"
+  echo "  rm           Remove an existing sandbox"
   echo ""
   echo "Available templates:"
   for dir in "${SCRIPT_DIR}"/*/; do
@@ -26,7 +30,28 @@ usage() {
   exit 1
 }
 
+sandbox_name() {
+  local template="$1"
+  local workspace="${2:-$(pwd)}"
+  echo "${template}-$(basename "$workspace")"
+}
+
 [[ $# -lt 1 ]] && usage
+
+# Handle rm subcommand
+if [[ "$1" == "rm" ]]; then
+  shift
+  [[ $# -lt 1 ]] && { echo "Usage: $(basename "$0") rm <template> [workspace]" >&2; exit 1; }
+  SANDBOX_NAME="$(sandbox_name "$1" "${2:-$(pwd)}")"
+  if docker sandbox ls 2>/dev/null | grep -q "${SANDBOX_NAME}"; then
+    docker sandbox rm "${SANDBOX_NAME}"
+    echo "Removed sandbox: ${SANDBOX_NAME}"
+  else
+    echo "Sandbox ${SANDBOX_NAME} not found." >&2
+    exit 1
+  fi
+  exit 0
+fi
 
 TEMPLATE="$1"
 shift
