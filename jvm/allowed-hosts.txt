@@ -1,0 +1,25 @@
+# Anthropic (Claude Code)
+api.anthropic.com
+sentry.io
+statsig.anthropic.com
+statsig.com
+
+# GitHub
+github.com
+api.github.com
+
+# npm (Claude Code packages)
+registry.npmjs.org
+
+# JDK / Adoptium
+packages.adoptium.net
+
+# Gradle
+plugins.gradle.org
+services.gradle.org
+dl.google.com
+
+# Maven
+repo.maven.apache.org
+repo1.maven.org
+jcenter.bintray.com
