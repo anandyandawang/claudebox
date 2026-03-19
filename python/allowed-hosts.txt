@@ -1,0 +1,16 @@
+# Anthropic (Claude Code)
+api.anthropic.com
+sentry.io
+statsig.anthropic.com
+statsig.com
+
+# GitHub
+github.com
+api.github.com
+
+# npm (Claude Code packages)
+registry.npmjs.org
+
+# Python packages
+pypi.org
+files.pythonhosted.org
