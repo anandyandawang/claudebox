@@ -19,6 +19,7 @@ usage() {
   echo "  -- args      Additional arguments passed to the agent"
   echo ""
   echo "Commands:"
+  echo "  ls           List all sandboxes"
   echo "  rm           Remove an existing sandbox"
   echo ""
   echo "Available templates:"
@@ -38,7 +39,12 @@ sandbox_name() {
 
 [[ $# -lt 1 ]] && usage
 
-# Handle rm subcommand
+# Handle subcommands
+if [[ "$1" == "ls" ]]; then
+  docker sandbox ls 2>/dev/null
+  exit 0
+fi
+
 if [[ "$1" == "rm" ]]; then
   shift
   [[ $# -lt 1 ]] && { echo "Usage: $(basename "$0") rm <template> [workspace]" >&2; exit 1; }
