@@ -65,7 +65,6 @@ else
 
   # Step 3: Symlink host Claude config into the sandbox
   echo "Linking host Claude config..."
-  docker sandbox exec "${SANDBOX_NAME}" rm -rf /home/agent/.claude/plugins
   docker sandbox exec "${SANDBOX_NAME}" ln -s "${HOST_CLAUDE_DIR}/plugins" /home/agent/.claude/plugins
   docker sandbox exec "${SANDBOX_NAME}" ln -sf "${HOST_CLAUDE_DIR}/settings.json" /home/agent/.claude/settings.json
   echo "Host config linked."
