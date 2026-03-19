@@ -5,10 +5,10 @@ USER root
 # Install prerequisites
 RUN apt-get update && apt-get install -y wget gnupg && rm -rf /var/lib/apt/lists/*
 
-# Add Adoptium apt repository
+# Add Adoptium apt repository (pinned to noble — questing not yet supported)
 RUN mkdir -p /etc/apt/keyrings && \
     wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /etc/apt/keyrings/adoptium.gpg && \
-    echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb $(. /etc/os-release && echo $VERSION_CODENAME) main" > /etc/apt/sources.list.d/adoptium.list
+    echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb noble main" > /etc/apt/sources.list.d/adoptium.list
 
 # Install JDK 21 and dev tools
 RUN apt-get update && apt-get install -y \
