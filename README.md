@@ -17,6 +17,10 @@ claudebox jvm ~/projects/my-app
 
 # Pass additional arguments to the agent
 claudebox python ~/projects/my-app -- -p "fix the tests"
+
+# Remove an existing sandbox (to recreate it fresh)
+claudebox rm python
+claudebox rm jvm ~/projects/my-app
 ```
 
 ## Installation
