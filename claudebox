@@ -95,12 +95,10 @@ else
   HOST_CLAUDE_DIR="${HOME}/.claude"
   docker sandbox create -t "${IMAGE_NAME}" --name "${SANDBOX_NAME}" claude "${WORKSPACE}" "${HOST_CLAUDE_DIR}"
 
-  # Step 3: Symlink host Claude config into the sandbox
+  # Step 3: Replace sandbox .claude dir with symlink to host config
   echo "Linking host Claude config..."
-  docker sandbox exec "${SANDBOX_NAME}" ln -s "${HOST_CLAUDE_DIR}/plugins" /home/agent/.claude/plugins
-  docker sandbox exec "${SANDBOX_NAME}" ln -sf "${HOST_CLAUDE_DIR}/settings.json" /home/agent/.claude/settings.json
-  docker sandbox exec "${SANDBOX_NAME}" ln -sf "${HOST_CLAUDE_DIR}/.credentials.json" /home/agent/.claude/.credentials.json
-  docker sandbox exec "${SANDBOX_NAME}" ln -sf "${HOST_CLAUDE_DIR}/.claude.json" /home/agent/.claude/.claude.json
+  docker sandbox exec "${SANDBOX_NAME}" rm -rf /home/agent/.claude
+  docker sandbox exec "${SANDBOX_NAME}" ln -s "${HOST_CLAUDE_DIR}" /home/agent/.claude
   echo "Host config linked."
 
   # Step 4: Apply network policy if allowed-hosts.txt exists
