@@ -81,6 +81,22 @@ else
     done < "${HOSTS_FILE}"
     docker sandbox network proxy "${SANDBOX_NAME}" "${PROXY_ARGS[@]}"
     echo "Network policy applied: $(grep -cv '^\s*$\|^\s*#' "${HOSTS_FILE}") hosts allowed."
+
+    # Verify network policy
+    echo "Verifying network policy..."
+    if docker sandbox exec "${SANDBOX_NAME}" curl --connect-timeout 5 -sf https://example.com >/dev/null 2>&1; then
+      echo "ERROR: Firewall verification failed — was able to reach https://example.com" >&2
+      exit 1
+    else
+      echo "  Blocked:  https://example.com (as expected)"
+    fi
+    if docker sandbox exec "${SANDBOX_NAME}" curl --connect-timeout 5 -sf https://api.github.com/zen >/dev/null 2>&1; then
+      echo "  Allowed:  https://api.github.com (as expected)"
+    else
+      echo "ERROR: Firewall verification failed — unable to reach https://api.github.com" >&2
+      exit 1
+    fi
+    echo "Network policy verified."
   else
     echo "No allowed-hosts.txt found, using default network policy (allow all)."
   fi
