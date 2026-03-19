@@ -109,7 +109,16 @@ else
   docker sandbox exec "${SANDBOX_NAME}" ln -sf "${HOST_CLAUDE_DIR}/plugins" /home/agent/.claude/plugins
   echo "Host config linked."
 
-  # Step 4: Apply network policy if allowed-hosts.txt exists
+  # Step 4: Configure JVM proxy so Java respects the sandbox HTTP proxy
+  docker sandbox exec "${SANDBOX_NAME}" sh -c '
+    if [ -n "$HTTPS_PROXY" ]; then
+      PROXY_HOST=$(echo "$HTTPS_PROXY" | sed -E "s|https?://||;s|:.*||")
+      PROXY_PORT=$(echo "$HTTPS_PROXY" | sed -E "s|.*:([0-9]+).*|\1|")
+      echo "export JAVA_TOOL_OPTIONS=\"-Dhttp.proxyHost=${PROXY_HOST} -Dhttp.proxyPort=${PROXY_PORT} -Dhttps.proxyHost=${PROXY_HOST} -Dhttps.proxyPort=${PROXY_PORT}\"" >> /etc/sandbox-persistent.sh
+    fi
+  '
+
+  # Step 5: Apply network policy if allowed-hosts.txt exists
   HOSTS_FILE="${TEMPLATE_DIR}/allowed-hosts.txt"
   if [[ -f "${HOSTS_FILE}" ]]; then
     echo "Applying network policy (deny by default)..."

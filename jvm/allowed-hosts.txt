@@ -7,6 +7,9 @@ statsig.com
 # GitHub
 github.com
 api.github.com
+release-assets.githubusercontent.com
+maven.pkg.github.com
+github-registry-files.githubusercontent.com
 
 # npm (Claude Code packages)
 registry.npmjs.org
@@ -16,6 +19,7 @@ packages.adoptium.net
 
 # Gradle
 plugins.gradle.org
+plugins-artifacts.gradle.org
 services.gradle.org
 dl.google.com
 
