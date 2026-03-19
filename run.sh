@@ -60,9 +60,18 @@ echo "Creating sandbox: ${SANDBOX_NAME}..."
 if docker sandbox ls 2>/dev/null | grep -q "${SANDBOX_NAME}"; then
   echo "Sandbox ${SANDBOX_NAME} already exists, reusing it."
 else
-  docker sandbox create -t "${IMAGE_NAME}" --name "${SANDBOX_NAME}" claude "${WORKSPACE}"
+  HOST_CLAUDE_DIR="${HOME}/.claude"
+  docker sandbox create -t "${IMAGE_NAME}" --name "${SANDBOX_NAME}" claude "${WORKSPACE}" "${HOST_CLAUDE_DIR}"
 
-  # Step 3: Apply network policy if allowed-hosts.txt exists
+  # Step 3: Symlink host plugins into the sandbox
+  if [[ -d "${HOST_CLAUDE_DIR}/plugins" ]]; then
+    echo "Linking host Claude plugins..."
+    docker sandbox exec "${SANDBOX_NAME}" rm -rf /home/agent/.claude/plugins
+    docker sandbox exec "${SANDBOX_NAME}" ln -s "${HOST_CLAUDE_DIR}/plugins" /home/agent/.claude/plugins
+    echo "Plugins linked."
+  fi
+
+  # Step 4: Apply network policy if allowed-hosts.txt exists
   HOSTS_FILE="${TEMPLATE_DIR}/allowed-hosts.txt"
   if [[ -f "${HOSTS_FILE}" ]]; then
     echo "Applying network policy (deny by default)..."
