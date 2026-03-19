@@ -88,4 +88,4 @@ fi
 
 # Run the sandbox
 echo "Starting sandbox..."
-docker sandbox run "${SANDBOX_NAME}" -- --dangerously-skip-permissions "${AGENT_ARGS[@]}"
+docker sandbox run "${SANDBOX_NAME}" -- --dangerously-skip-permissions ${AGENT_ARGS[@]+"${AGENT_ARGS[@]}"}
