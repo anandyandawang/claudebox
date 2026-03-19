@@ -67,6 +67,7 @@ else
   echo "Linking host Claude config..."
   docker sandbox exec "${SANDBOX_NAME}" ln -s "${HOST_CLAUDE_DIR}/plugins" /home/agent/.claude/plugins
   docker sandbox exec "${SANDBOX_NAME}" ln -sf "${HOST_CLAUDE_DIR}/settings.json" /home/agent/.claude/settings.json
+  docker sandbox exec "${SANDBOX_NAME}" ln -sf "${HOST_CLAUDE_DIR}/.credentials.json" /home/agent/.claude/.credentials.json
   echo "Host config linked."
 
   # Step 4: Apply network policy if allowed-hosts.txt exists
