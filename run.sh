@@ -63,24 +63,12 @@ else
   HOST_CLAUDE_DIR="${HOME}/.claude"
   docker sandbox create -t "${IMAGE_NAME}" --name "${SANDBOX_NAME}" claude "${WORKSPACE}" "${HOST_CLAUDE_DIR}"
 
-  # Step 3: Sync host plugins into the sandbox
-  if [[ -d "${HOST_CLAUDE_DIR}/plugins" ]]; then
-    echo "Linking host Claude plugins..."
-    docker sandbox exec "${SANDBOX_NAME}" rm -rf /home/agent/.claude/plugins
-    docker sandbox exec "${SANDBOX_NAME}" ln -s "${HOST_CLAUDE_DIR}/plugins" /home/agent/.claude/plugins
-
-    # Merge enabledPlugins from host settings into sandbox settings
-    HOST_SETTINGS="${HOST_CLAUDE_DIR}/settings.json"
-    if [[ -f "${HOST_SETTINGS}" ]] && command -v jq &>/dev/null; then
-      ENABLED_PLUGINS=$(jq -c '.enabledPlugins // empty' "${HOST_SETTINGS}")
-      if [[ -n "${ENABLED_PLUGINS}" ]]; then
-        echo "Syncing enabled plugins to sandbox settings..."
-        docker sandbox exec "${SANDBOX_NAME}" bash -c \
-          "jq --argjson ep '${ENABLED_PLUGINS}' '. + {enabledPlugins: \$ep}' /home/agent/.claude/settings.json > /tmp/settings.json && mv /tmp/settings.json /home/agent/.claude/settings.json"
-      fi
-    fi
-    echo "Plugins synced."
-  fi
+  # Step 3: Symlink host Claude config into the sandbox
+  echo "Linking host Claude config..."
+  docker sandbox exec "${SANDBOX_NAME}" rm -rf /home/agent/.claude/plugins
+  docker sandbox exec "${SANDBOX_NAME}" ln -s "${HOST_CLAUDE_DIR}/plugins" /home/agent/.claude/plugins
+  docker sandbox exec "${SANDBOX_NAME}" ln -sf "${HOST_CLAUDE_DIR}/settings.json" /home/agent/.claude/settings.json
+  echo "Host config linked."
 
   # Step 4: Apply network policy if allowed-hosts.txt exists
   HOSTS_FILE="${TEMPLATE_DIR}/allowed-hosts.txt"
@@ -99,10 +87,6 @@ else
   fi
 fi
 
-# Step 4: Run the sandbox
+# Run the sandbox
 echo "Starting sandbox..."
-if [[ ${#AGENT_ARGS[@]} -gt 0 ]]; then
-  docker sandbox run "${SANDBOX_NAME}" -- "${AGENT_ARGS[@]}"
-else
-  docker sandbox run "${SANDBOX_NAME}"
-fi
+docker sandbox run "${SANDBOX_NAME}" -- --dangerously-skip-permissions "${AGENT_ARGS[@]}"
