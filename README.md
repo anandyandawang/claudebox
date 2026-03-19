@@ -18,6 +18,9 @@ claudebox jvm ~/projects/my-app
 # Pass additional arguments to the agent
 claudebox python ~/projects/my-app -- -p "fix the tests"
 
+# List all sandboxes
+claudebox ls
+
 # Remove an existing sandbox (to recreate it fresh)
 claudebox rm python
 claudebox rm jvm ~/projects/my-app
@@ -61,7 +64,7 @@ If no `allowed-hosts.txt` is present, the sandbox has unrestricted network acces
 
 1. Builds a Docker image from the template's `Dockerfile`.
 2. Creates a named sandbox, mounting your workspace and `~/.claude` config.
-3. Symlinks host Claude credentials, settings, and plugins into the sandbox.
+3. Symlinks the host `~/.claude` directory into the sandbox for auth and config.
 4. Applies network restrictions if `allowed-hosts.txt` exists (with verification).
 5. Runs Claude Code inside the sandbox with `--dangerously-skip-permissions`.
 
