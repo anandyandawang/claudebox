@@ -2,13 +2,16 @@ FROM docker/sandbox-templates:claude-code
 
 USER root
 
-# Install JDK 21 (Eclipse Temurin) and dev tools
+# Install prerequisites
+RUN apt-get update && apt-get install -y wget gnupg && rm -rf /var/lib/apt/lists/*
+
+# Add Adoptium apt repository
+RUN mkdir -p /etc/apt/keyrings && \
+    wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /etc/apt/keyrings/adoptium.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb $(. /etc/os-release && echo $VERSION_CODENAME) main" > /etc/apt/sources.list.d/adoptium.list
+
+# Install JDK 21 and dev tools
 RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
-    && wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /etc/apt/keyrings/adoptium.gpg \
-    && echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb $(. /etc/os-release && echo $VERSION_CODENAME) main" > /etc/apt/sources.list.d/adoptium.list \
-    && apt-get update && apt-get install -y \
     temurin-21-jdk \
     fzf \
     jq \
