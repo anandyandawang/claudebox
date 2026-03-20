@@ -104,7 +104,6 @@ else
   # Step 3: Symlink host config into the sandbox
   echo "Linking host Claude config..."
   docker sandbox exec "${SANDBOX_NAME}" ln -sf "${HOST_CLAUDE_DIR}/.claude.json" /home/agent/.claude.json
-  docker sandbox exec "${SANDBOX_NAME}" ln -sf "${HOST_CLAUDE_DIR}/.credentials.json" /home/agent/.claude/.credentials.json
   docker sandbox exec "${SANDBOX_NAME}" ln -sf "${HOST_CLAUDE_DIR}/settings.json" /home/agent/.claude/settings.json
   docker sandbox exec "${SANDBOX_NAME}" ln -sf "${HOST_CLAUDE_DIR}/plugins" /home/agent/.claude/plugins
   echo "Host config linked."
@@ -149,6 +148,17 @@ else
   else
     echo "No allowed-hosts.txt found, using default network policy (allow all)."
   fi
+fi
+
+# Refresh credentials from macOS Keychain on every launch
+echo "Refreshing credentials from macOS Keychain..."
+CREDS="$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null)" || {
+  echo "WARNING: No credentials found in Keychain. You may need to re-authenticate inside the sandbox." >&2
+  CREDS=""
+}
+if [[ -n "$CREDS" ]]; then
+  CREDS_B64="$(printf '%s' "$CREDS" | base64)"
+  docker sandbox exec "${SANDBOX_NAME}" sh -c "echo '${CREDS_B64}' | tr -d '[:space:]' | base64 -d > /home/agent/.claude/.credentials.json && chmod 600 /home/agent/.claude/.credentials.json"
 fi
 
 # Run the sandbox
