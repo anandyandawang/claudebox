@@ -137,8 +137,6 @@ echo "Creating sandbox: ${SANDBOX_NAME}..."
     git clean -fdx -q
     git checkout -b '${SESSION_ID}'
   "
-  docker sandbox exec "${SANDBOX_NAME}" sh -c "echo 'cd /home/agent/workspace' >> /etc/sandbox-persistent.sh"
-
   # Step 5: Set GitHub username (GITHUB_TOKEN is auto-injected by `docker sandbox run`)
   if [[ -n "${GITHUB_USERNAME:-}" ]]; then
     docker sandbox exec "${SANDBOX_NAME}" sh -c "echo 'export GITHUB_USERNAME=${GITHUB_USERNAME}' >> /etc/sandbox-persistent.sh"
@@ -205,6 +203,20 @@ if [[ -n "$CREDS" ]]; then
   CREDS_B64="$(printf '%s' "$CREDS" | base64)"
   docker sandbox exec "${SANDBOX_NAME}" sh -c "echo '${CREDS_B64}' | tr -d '[:space:]' | base64 -d > /home/agent/.claude/.credentials.json && chmod 600 /home/agent/.claude/.credentials.json"
 fi
+
+# Wrap the claude binary so it cd's to the local workspace before starting.
+# docker sandbox run always starts in the mounted workspace, but we need Claude Code's
+# project directory to be the local copy so Edit/Read/Glob and Bash all use the same files.
+docker sandbox exec "${SANDBOX_NAME}" sh -c '
+  CLAUDE_BIN=$(which claude)
+  sudo mv "$CLAUDE_BIN" "${CLAUDE_BIN}-real"
+  sudo tee "$CLAUDE_BIN" > /dev/null << WRAPPER
+#!/bin/bash
+cd /home/agent/workspace
+exec "\$(dirname "\$0")/claude-real" "\$@"
+WRAPPER
+  sudo chmod +x "$CLAUDE_BIN"
+'
 
 # Run the sandbox
 echo "Starting sandbox..."
