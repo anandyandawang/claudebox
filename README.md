@@ -68,7 +68,8 @@ If no `allowed-hosts.txt` is present, the sandbox has unrestricted network acces
 2. Creates a named sandbox, mounting the repo and `~/.claude` config.
 3. Symlinks the host `~/.claude` directory into the sandbox for auth and config.
 4. Copies the repo to the container's local filesystem (`/home/agent/workspace/`) and creates a session branch. Docker's VirtioFS mounts on macOS have write-visibility latency that corrupts build caches — the local copy avoids this entirely.
-5. Applies network restrictions if `allowed-hosts.txt` exists (with verification).
-6. Runs Claude Code inside the sandbox with `--dangerously-skip-permissions`.
+5. Wraps the `claude` binary so Claude Code's project directory is the local copy — all tools (Edit, Read, Glob, Bash) operate on the same files.
+6. Applies network restrictions if `allowed-hosts.txt` exists (with verification).
+7. Runs Claude Code inside the sandbox with `--dangerously-skip-permissions`.
 
 Each run creates a new sandbox with a fully local copy of the repo on its own branch, so multiple sessions can work independently in parallel.
