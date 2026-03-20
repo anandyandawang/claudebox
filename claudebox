@@ -108,7 +108,12 @@ else
   docker sandbox exec "${SANDBOX_NAME}" ln -sf "${HOST_CLAUDE_DIR}/plugins" /home/agent/.claude/plugins
   echo "Host config linked."
 
-  # Step 4: Configure JVM proxy so Java respects the sandbox HTTP proxy
+  # Step 4: Set GitHub username (GITHUB_TOKEN is auto-injected by `docker sandbox run`)
+  if [[ -n "${GITHUB_USERNAME:-}" ]]; then
+    docker sandbox exec "${SANDBOX_NAME}" sh -c "echo 'export GITHUB_USERNAME=${GITHUB_USERNAME}' >> /etc/sandbox-persistent.sh"
+  fi
+
+  # Step 5: Configure JVM proxy so Java respects the sandbox HTTP proxy (template-agnostic)
   docker sandbox exec "${SANDBOX_NAME}" sh -c '
     if [ -n "$HTTPS_PROXY" ]; then
       PROXY_HOST=$(echo "$HTTPS_PROXY" | sed -E "s|https?://||;s|:.*||")
@@ -117,7 +122,7 @@ else
     fi
   '
 
-  # Step 5: Apply network policy if allowed-hosts.txt exists
+  # Step 6: Apply network policy if allowed-hosts.txt exists
   HOSTS_FILE="${TEMPLATE_DIR}/allowed-hosts.txt"
   if [[ -f "${HOSTS_FILE}" ]]; then
     echo "Applying network policy (deny by default)..."
