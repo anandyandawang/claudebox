@@ -21,9 +21,11 @@ claudebox python ~/projects/my-app -- -p "fix the tests"
 # List all sandboxes
 claudebox ls
 
-# Remove an existing sandbox (to recreate it fresh)
-claudebox rm python
-claudebox rm jvm ~/projects/my-app
+# Remove a specific sandbox
+claudebox rm myapp-python-sandbox-20260320-121500
+
+# Remove all sandboxes for the current directory
+claudebox rm all
 ```
 
 ## Installation
@@ -63,9 +65,10 @@ If no `allowed-hosts.txt` is present, the sandbox has unrestricted network acces
 ## How it works
 
 1. Builds a Docker image from the template's `Dockerfile`.
-2. Creates a named sandbox, mounting your workspace and `~/.claude` config.
-3. Symlinks the host `~/.claude` directory into the sandbox for auth and config.
-4. Applies network restrictions if `allowed-hosts.txt` exists (with verification).
-5. Runs Claude Code inside the sandbox with `--dangerously-skip-permissions`.
+2. Creates a git worktree so each session gets its own branch and working directory.
+3. Creates a named sandbox (e.g. `myapp-python-sandbox-20260320-121500`), mounting the worktree, parent repo, and `~/.claude` config.
+4. Symlinks the host `~/.claude` directory into the sandbox for auth and config.
+5. Applies network restrictions if `allowed-hosts.txt` exists (with verification).
+6. Runs Claude Code inside the sandbox with `--dangerously-skip-permissions`.
 
-Subsequent runs reuse the existing sandbox if one with the same name is found.
+Each run creates a new sandbox with its own git worktree, so multiple sessions can work on independent branches in parallel.
