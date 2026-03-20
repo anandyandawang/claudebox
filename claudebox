@@ -18,12 +18,12 @@ usage() {
   echo "  workspace    Workspace path (default: current directory)"
   echo "  -- args      Additional arguments passed to the agent"
   echo ""
-  echo "Each run creates a new sandbox with its own git worktree, so"
-  echo "multiple sessions can work on independent branches in parallel."
+  echo "Each run creates a new sandbox with a local copy of the repo,"
+  echo "so multiple sessions can work on independent branches in parallel."
   echo ""
   echo "Commands:"
   echo "  ls           List all sandboxes"
-  echo "  rm <name>    Remove a sandbox and its git worktree"
+  echo "  rm <name>    Remove a sandbox"
   echo "  rm all       Remove all sandboxes for the current directory"
   echo ""
   echo "Available templates:"
@@ -48,24 +48,14 @@ if [[ "$1" == "rm" ]]; then
   [[ $# -lt 1 ]] && { echo "Usage: $(basename "$0") rm <sandbox-name|all>" >&2; exit 1; }
 
   if [[ "$1" == "all" ]]; then
-    WORKTREE_DIR="$(pwd)/.worktrees"
-    if [[ ! -d "$WORKTREE_DIR" ]]; then
-      echo "No sandboxes found for $(pwd)."
-      exit 0
-    fi
-    SANDBOX_LIST="$(docker sandbox ls 2>/dev/null)"
+    WORKSPACE_NAME="$(basename "$(pwd)" | tr -cs 'a-zA-Z0-9_.-' '-')"
+    SANDBOX_LIST="$(docker sandbox ls 2>/dev/null || true)"
     REMOVED=0
-    for wt in "${WORKTREE_DIR}"/sandbox-*/; do
-      [[ -d "$wt" ]] || continue
-      SESSION_BRANCH="$(basename "$wt")"
-      # Find any sandbox whose name ends with this session branch
-      SANDBOX_NAME="$(echo "$SANDBOX_LIST" | grep -oE "^[^ ]+-${SESSION_BRANCH}" || true)"
-      if [[ -n "$SANDBOX_NAME" ]]; then
-        docker sandbox rm "${SANDBOX_NAME}" && echo "Removed sandbox: ${SANDBOX_NAME}" || true
-      fi
-      git worktree remove "$wt" 2>/dev/null && echo "Removed worktree: ${SESSION_BRANCH}" || true
+    while IFS= read -r SANDBOX_NAME; do
+      [[ -z "$SANDBOX_NAME" ]] && continue
+      docker sandbox rm "${SANDBOX_NAME}" && echo "Removed sandbox: ${SANDBOX_NAME}" || true
       REMOVED=$((REMOVED + 1))
-    done
+    done < <(echo "$SANDBOX_LIST" | grep -oE "^${WORKSPACE_NAME}-[^ ]+" || true)
     if [[ $REMOVED -eq 0 ]]; then
       echo "No sandboxes found for $(pwd)."
     else
@@ -78,10 +68,6 @@ if [[ "$1" == "rm" ]]; then
   if docker sandbox ls 2>/dev/null | grep -q "${SANDBOX_NAME}"; then
     docker sandbox rm "${SANDBOX_NAME}"
     echo "Removed sandbox: ${SANDBOX_NAME}"
-    # Clean up the corresponding git worktree if it exists
-    SESSION_BRANCH="${SANDBOX_NAME#*-sandbox-}"
-    SESSION_BRANCH="sandbox-${SESSION_BRANCH}"
-    git worktree remove ".worktrees/${SESSION_BRANCH}" 2>/dev/null && echo "Removed worktree: ${SESSION_BRANCH}" || true
   else
     echo "Sandbox ${SANDBOX_NAME} not found." >&2
     exit 1
@@ -122,46 +108,43 @@ IMAGE_NAME="${TEMPLATE}-sandbox"
 echo "Building template image: ${IMAGE_NAME}..."
 docker build -t "${IMAGE_NAME}" "${TEMPLATE_DIR}"
 
-# Step 2: Create a git worktree so each session gets its own branch and working directory.
-# The parent workspace is also mounted so git can resolve the worktree's .git reference.
-SESSION_BRANCH="sandbox-$(date +%Y%m%d-%H%M%S)"
-SESSION_DIR="${WORKSPACE}/.worktrees/${SESSION_BRANCH}"
-echo "Creating worktree: ${SESSION_BRANCH}..."
-mkdir -p "${WORKSPACE}/.worktrees"
-git -C "${WORKSPACE}" worktree add "${SESSION_DIR}" -b "${SESSION_BRANCH}"
-
+# Step 2: Create the sandbox, mounting the repo for the initial copy
 WORKSPACE_NAME="$(basename "${WORKSPACE}" | tr -cs 'a-zA-Z0-9_.-' '-')"
-SANDBOX_NAME="${WORKSPACE_NAME}-${TEMPLATE}-${SESSION_BRANCH}"
+SESSION_ID="sandbox-$(date +%Y%m%d-%H%M%S)"
+SANDBOX_NAME="${WORKSPACE_NAME}-${TEMPLATE}-${SESSION_ID}"
 
-# Step 3: Create the sandbox with the worktree as workspace
 echo "Creating sandbox: ${SANDBOX_NAME}..."
 {
   HOST_CLAUDE_DIR="${HOME}/.claude"
-  docker sandbox create -t "${IMAGE_NAME}" --name "${SANDBOX_NAME}" claude "${SESSION_DIR}" "${WORKSPACE}" "${HOST_CLAUDE_DIR}"
+  docker sandbox create -t "${IMAGE_NAME}" --name "${SANDBOX_NAME}" claude "${WORKSPACE}" "${HOST_CLAUDE_DIR}"
 
-  # Step 4: Symlink host config into the sandbox
+  # Step 3: Symlink host config into the sandbox
   echo "Linking host Claude config..."
   docker sandbox exec "${SANDBOX_NAME}" ln -sf "${HOST_CLAUDE_DIR}/.claude.json" /home/agent/.claude.json
   docker sandbox exec "${SANDBOX_NAME}" ln -sf "${HOST_CLAUDE_DIR}/settings.json" /home/agent/.claude/settings.json
   docker sandbox exec "${SANDBOX_NAME}" ln -sf "${HOST_CLAUDE_DIR}/plugins" /home/agent/.claude/plugins
   echo "Host config linked."
 
-  # Step 5: Copy workspace to the container's local filesystem.
+  # Step 4: Copy the repo to the container's local filesystem.
   # Docker's VirtioFS mounts on macOS have write-visibility latency that corrupts
-  # Gradle's fileHashes.bin and build output jars mid-build. Copying to the container's
-  # local ext4 avoids this entirely. Git operations (commit, push) still flow through
-  # the worktree's .git reference to the mounted parent repo, which is fine — git uses
-  # proper locking and atomic writes unlike Gradle's aggressive file caching.
+  # Gradle's fileHashes.bin and build output jars mid-build. A local copy avoids
+  # this entirely — all file I/O and git operations happen on local ext4.
+  # The mount is only used as the source for the initial copy.
   echo "Copying workspace to container-local filesystem..."
-  docker sandbox exec "${SANDBOX_NAME}" sh -c "cp -a '${SESSION_DIR}/.' /home/agent/workspace/"
+  docker sandbox exec "${SANDBOX_NAME}" sh -c "
+    cp -a '${WORKSPACE}/.' /home/agent/workspace/
+    cd /home/agent/workspace
+    git clean -fdx -q
+    git checkout -b '${SESSION_ID}'
+  "
   docker sandbox exec "${SANDBOX_NAME}" sh -c "echo 'cd /home/agent/workspace' >> /etc/sandbox-persistent.sh"
 
-  # Step 6: Set GitHub username (GITHUB_TOKEN is auto-injected by `docker sandbox run`)
+  # Step 5: Set GitHub username (GITHUB_TOKEN is auto-injected by `docker sandbox run`)
   if [[ -n "${GITHUB_USERNAME:-}" ]]; then
     docker sandbox exec "${SANDBOX_NAME}" sh -c "echo 'export GITHUB_USERNAME=${GITHUB_USERNAME}' >> /etc/sandbox-persistent.sh"
   fi
 
-  # Step 7: Configure JVM proxy so Java respects the sandbox HTTP proxy.
+  # Step 6: Configure JVM proxy so Java respects the sandbox HTTP proxy.
   # The sandbox MITM proxy intercepts HTTPS with its own CA cert. Without importing it
   # into Java's truststore, Gradle/Maven fail to download dependencies through the proxy,
   # causing errors that look like cache corruption.
@@ -179,7 +162,7 @@ echo "Creating sandbox: ${SANDBOX_NAME}..."
     fi
   '
 
-  # Step 8: Apply network policy if allowed-hosts.txt exists
+  # Step 7: Apply network policy if allowed-hosts.txt exists
   HOSTS_FILE="${TEMPLATE_DIR}/allowed-hosts.txt"
   if [[ -f "${HOSTS_FILE}" ]]; then
     echo "Applying network policy (deny by default)..."

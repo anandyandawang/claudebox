@@ -65,11 +65,10 @@ If no `allowed-hosts.txt` is present, the sandbox has unrestricted network acces
 ## How it works
 
 1. Builds a Docker image from the template's `Dockerfile`.
-2. Creates a git worktree so each session gets its own branch and working directory.
-3. Creates a named sandbox (e.g. `myapp-python-sandbox-20260320-121500`), mounting the worktree, parent repo, and `~/.claude` config.
-4. Symlinks the host `~/.claude` directory into the sandbox for auth and config.
-5. Copies the workspace to the container's local filesystem for fast I/O — Docker's VirtioFS mounts on macOS have latency that can corrupt build caches. Git operations still use the mounted worktree via the `.git` reference.
-6. Applies network restrictions if `allowed-hosts.txt` exists (with verification).
-7. Runs Claude Code inside the sandbox with `--dangerously-skip-permissions`.
+2. Creates a named sandbox, mounting the repo and `~/.claude` config.
+3. Symlinks the host `~/.claude` directory into the sandbox for auth and config.
+4. Copies the repo to the container's local filesystem (`/home/agent/workspace/`) and creates a session branch. Docker's VirtioFS mounts on macOS have write-visibility latency that corrupts build caches — the local copy avoids this entirely.
+5. Applies network restrictions if `allowed-hosts.txt` exists (with verification).
+6. Runs Claude Code inside the sandbox with `--dangerously-skip-permissions`.
 
-Each run creates a new sandbox with its own git worktree, so multiple sessions can work on independent branches in parallel.
+Each run creates a new sandbox with a fully local copy of the repo on its own branch, so multiple sessions can work independently in parallel.
