@@ -12,15 +12,18 @@ SCRIPT_DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
 
 usage() {
   echo "Usage: $(basename "$0") <template> [workspace] [-- agent_args...]"
-  echo "       $(basename "$0") rm <template> [workspace]"
+  echo "       $(basename "$0") rm <sandbox-name>"
   echo ""
   echo "  template     Template directory name (e.g. python, jvm)"
   echo "  workspace    Workspace path (default: current directory)"
   echo "  -- args      Additional arguments passed to the agent"
   echo ""
+  echo "Each run creates a new sandbox with its own git worktree, so"
+  echo "multiple sessions can work on independent branches in parallel."
+  echo ""
   echo "Commands:"
   echo "  ls           List all sandboxes"
-  echo "  rm           Remove an existing sandbox"
+  echo "  rm           Remove a sandbox and its git worktree"
   echo ""
   echo "Available templates:"
   for dir in "${SCRIPT_DIR}"/*/; do
@@ -29,12 +32,6 @@ usage() {
     fi
   done
   exit 1
-}
-
-sandbox_name() {
-  local template="$1"
-  local workspace="${2:-$(pwd)}"
-  echo "${template}-$(basename "$workspace")"
 }
 
 [[ $# -lt 1 ]] && usage
@@ -47,11 +44,15 @@ fi
 
 if [[ "$1" == "rm" ]]; then
   shift
-  [[ $# -lt 1 ]] && { echo "Usage: $(basename "$0") rm <template> [workspace]" >&2; exit 1; }
-  SANDBOX_NAME="$(sandbox_name "$1" "${2:-$(pwd)}")"
+  [[ $# -lt 1 ]] && { echo "Usage: $(basename "$0") rm <sandbox-name>" >&2; exit 1; }
+  SANDBOX_NAME="$1"
   if docker sandbox ls 2>/dev/null | grep -q "${SANDBOX_NAME}"; then
     docker sandbox rm "${SANDBOX_NAME}"
     echo "Removed sandbox: ${SANDBOX_NAME}"
+    # Clean up the corresponding git worktree if it exists
+    SESSION_BRANCH="${SANDBOX_NAME#*-sandbox-}"
+    SESSION_BRANCH="sandbox-${SESSION_BRANCH}"
+    git worktree remove ".worktrees/${SESSION_BRANCH}" 2>/dev/null && echo "Removed worktree: ${SESSION_BRANCH}" || true
   else
     echo "Sandbox ${SANDBOX_NAME} not found." >&2
     exit 1
@@ -87,33 +88,40 @@ while [[ $# -gt 0 ]]; do
 done
 
 IMAGE_NAME="${TEMPLATE}-sandbox"
-SANDBOX_NAME="${TEMPLATE}-$(basename "$WORKSPACE")"
 
 # Step 1: Build the template image
 echo "Building template image: ${IMAGE_NAME}..."
 docker build -t "${IMAGE_NAME}" "${TEMPLATE_DIR}"
 
-# Step 2: Create the sandbox (remove existing if present)
-echo "Creating sandbox: ${SANDBOX_NAME}..."
-if docker sandbox ls 2>/dev/null | grep -q "${SANDBOX_NAME}"; then
-  echo "Sandbox ${SANDBOX_NAME} already exists, reusing it."
-else
-  HOST_CLAUDE_DIR="${HOME}/.claude"
-  docker sandbox create -t "${IMAGE_NAME}" --name "${SANDBOX_NAME}" claude "${WORKSPACE}" "${HOST_CLAUDE_DIR}"
+# Step 2: Create a git worktree so each session gets its own branch and working directory.
+# The parent workspace is also mounted so git can resolve the worktree's .git reference.
+SESSION_BRANCH="sandbox-$(date +%Y%m%d-%H%M%S)"
+SESSION_DIR="${WORKSPACE}/.worktrees/${SESSION_BRANCH}"
+echo "Creating worktree: ${SESSION_BRANCH}..."
+mkdir -p "${WORKSPACE}/.worktrees"
+git -C "${WORKSPACE}" worktree add "${SESSION_DIR}" -b "${SESSION_BRANCH}"
 
-  # Step 3: Symlink host config into the sandbox
+SANDBOX_NAME="${TEMPLATE}-${SESSION_BRANCH}"
+
+# Step 3: Create the sandbox with the worktree as workspace
+echo "Creating sandbox: ${SANDBOX_NAME}..."
+{
+  HOST_CLAUDE_DIR="${HOME}/.claude"
+  docker sandbox create -t "${IMAGE_NAME}" --name "${SANDBOX_NAME}" claude "${SESSION_DIR}" "${WORKSPACE}" "${HOST_CLAUDE_DIR}"
+
+  # Step 4: Symlink host config into the sandbox
   echo "Linking host Claude config..."
   docker sandbox exec "${SANDBOX_NAME}" ln -sf "${HOST_CLAUDE_DIR}/.claude.json" /home/agent/.claude.json
   docker sandbox exec "${SANDBOX_NAME}" ln -sf "${HOST_CLAUDE_DIR}/settings.json" /home/agent/.claude/settings.json
   docker sandbox exec "${SANDBOX_NAME}" ln -sf "${HOST_CLAUDE_DIR}/plugins" /home/agent/.claude/plugins
   echo "Host config linked."
 
-  # Step 4: Set GitHub username (GITHUB_TOKEN is auto-injected by `docker sandbox run`)
+  # Step 5: Set GitHub username (GITHUB_TOKEN is auto-injected by `docker sandbox run`)
   if [[ -n "${GITHUB_USERNAME:-}" ]]; then
     docker sandbox exec "${SANDBOX_NAME}" sh -c "echo 'export GITHUB_USERNAME=${GITHUB_USERNAME}' >> /etc/sandbox-persistent.sh"
   fi
 
-  # Step 5: Configure JVM proxy so Java respects the sandbox HTTP proxy.
+  # Step 6: Configure JVM proxy so Java respects the sandbox HTTP proxy.
   # The sandbox MITM proxy intercepts HTTPS with its own CA cert. Without importing it
   # into Java's truststore, Gradle/Maven fail to download dependencies through the proxy,
   # causing errors that look like cache corruption.
@@ -131,7 +139,7 @@ else
     fi
   '
 
-  # Step 6: Apply network policy if allowed-hosts.txt exists
+  # Step 7: Apply network policy if allowed-hosts.txt exists
   HOSTS_FILE="${TEMPLATE_DIR}/allowed-hosts.txt"
   if [[ -f "${HOSTS_FILE}" ]]; then
     echo "Applying network policy (deny by default)..."
@@ -162,7 +170,7 @@ else
   else
     echo "No allowed-hosts.txt found, using default network policy (allow all)."
   fi
-fi
+}
 
 # Refresh credentials from macOS Keychain on every launch
 echo "Refreshing credentials from macOS Keychain..."
