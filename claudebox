@@ -12,7 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
 
 usage() {
   echo "Usage: $(basename "$0") <template> [workspace] [-- agent_args...]"
-  echo "       $(basename "$0") rm <sandbox-name>"
+  echo "       $(basename "$0") rm <sandbox-name|all>"
   echo ""
   echo "  template     Template directory name (e.g. python, jvm)"
   echo "  workspace    Workspace path (default: current directory)"
@@ -23,7 +23,8 @@ usage() {
   echo ""
   echo "Commands:"
   echo "  ls           List all sandboxes"
-  echo "  rm           Remove a sandbox and its git worktree"
+  echo "  rm <name>    Remove a sandbox and its git worktree"
+  echo "  rm all       Remove all sandboxes for the current directory"
   echo ""
   echo "Available templates:"
   for dir in "${SCRIPT_DIR}"/*/; do
@@ -44,7 +45,35 @@ fi
 
 if [[ "$1" == "rm" ]]; then
   shift
-  [[ $# -lt 1 ]] && { echo "Usage: $(basename "$0") rm <sandbox-name>" >&2; exit 1; }
+  [[ $# -lt 1 ]] && { echo "Usage: $(basename "$0") rm <sandbox-name|all>" >&2; exit 1; }
+
+  if [[ "$1" == "all" ]]; then
+    WORKTREE_DIR="$(pwd)/.worktrees"
+    if [[ ! -d "$WORKTREE_DIR" ]]; then
+      echo "No sandboxes found for $(pwd)."
+      exit 0
+    fi
+    SANDBOX_LIST="$(docker sandbox ls 2>/dev/null)"
+    REMOVED=0
+    for wt in "${WORKTREE_DIR}"/sandbox-*/; do
+      [[ -d "$wt" ]] || continue
+      SESSION_BRANCH="$(basename "$wt")"
+      # Find any sandbox whose name ends with this session branch
+      SANDBOX_NAME="$(echo "$SANDBOX_LIST" | grep -oE "^[^ ]+-${SESSION_BRANCH}" || true)"
+      if [[ -n "$SANDBOX_NAME" ]]; then
+        docker sandbox rm "${SANDBOX_NAME}" && echo "Removed sandbox: ${SANDBOX_NAME}" || true
+      fi
+      git worktree remove "$wt" 2>/dev/null && echo "Removed worktree: ${SESSION_BRANCH}" || true
+      REMOVED=$((REMOVED + 1))
+    done
+    if [[ $REMOVED -eq 0 ]]; then
+      echo "No sandboxes found for $(pwd)."
+    else
+      echo "Removed ${REMOVED} sandbox(es)."
+    fi
+    exit 0
+  fi
+
   SANDBOX_NAME="$1"
   if docker sandbox ls 2>/dev/null | grep -q "${SANDBOX_NAME}"; then
     docker sandbox rm "${SANDBOX_NAME}"
@@ -101,7 +130,8 @@ echo "Creating worktree: ${SESSION_BRANCH}..."
 mkdir -p "${WORKSPACE}/.worktrees"
 git -C "${WORKSPACE}" worktree add "${SESSION_DIR}" -b "${SESSION_BRANCH}"
 
-SANDBOX_NAME="${TEMPLATE}-${SESSION_BRANCH}"
+WORKSPACE_NAME="$(basename "${WORKSPACE}" | tr -cs 'a-zA-Z0-9_.-' '-')"
+SANDBOX_NAME="${WORKSPACE_NAME}-${TEMPLATE}-${SESSION_BRANCH}"
 
 # Step 3: Create the sandbox with the worktree as workspace
 echo "Creating sandbox: ${SANDBOX_NAME}..."
