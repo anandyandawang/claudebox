@@ -32,8 +32,7 @@ RUN ARCH=$(dpkg --print-architecture) && \
 
 USER agent
 
-# Disable Gradle daemon to prevent cache corruption from concurrent builds.
-# Claude Code often runs multiple Gradle commands in parallel, and the daemon's
-# file locks don't play well with the sandbox filesystem.
+# Disable Gradle daemon — Claude Code may run multiple Gradle commands per session,
+# and the daemon's file locks can cause issues in containers.
 RUN mkdir -p /home/agent/.gradle && \
-    printf "org.gradle.daemon=false\norg.gradle.parallel=false\n" > /home/agent/.gradle/gradle.properties
+    printf "org.gradle.daemon=false\n" > /home/agent/.gradle/gradle.properties

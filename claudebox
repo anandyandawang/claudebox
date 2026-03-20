@@ -146,12 +146,22 @@ echo "Creating sandbox: ${SANDBOX_NAME}..."
   docker sandbox exec "${SANDBOX_NAME}" ln -sf "${HOST_CLAUDE_DIR}/plugins" /home/agent/.claude/plugins
   echo "Host config linked."
 
-  # Step 5: Set GitHub username (GITHUB_TOKEN is auto-injected by `docker sandbox run`)
+  # Step 5: Copy workspace to the container's local filesystem.
+  # Docker's VirtioFS mounts on macOS have write-visibility latency that corrupts
+  # Gradle's fileHashes.bin and build output jars mid-build. Copying to the container's
+  # local ext4 avoids this entirely. Git operations (commit, push) still flow through
+  # the worktree's .git reference to the mounted parent repo, which is fine — git uses
+  # proper locking and atomic writes unlike Gradle's aggressive file caching.
+  echo "Copying workspace to container-local filesystem..."
+  docker sandbox exec "${SANDBOX_NAME}" sh -c "cp -a '${SESSION_DIR}/.' /home/agent/workspace/"
+  docker sandbox exec "${SANDBOX_NAME}" sh -c "echo 'cd /home/agent/workspace' >> /etc/sandbox-persistent.sh"
+
+  # Step 6: Set GitHub username (GITHUB_TOKEN is auto-injected by `docker sandbox run`)
   if [[ -n "${GITHUB_USERNAME:-}" ]]; then
     docker sandbox exec "${SANDBOX_NAME}" sh -c "echo 'export GITHUB_USERNAME=${GITHUB_USERNAME}' >> /etc/sandbox-persistent.sh"
   fi
 
-  # Step 6: Configure JVM proxy so Java respects the sandbox HTTP proxy.
+  # Step 7: Configure JVM proxy so Java respects the sandbox HTTP proxy.
   # The sandbox MITM proxy intercepts HTTPS with its own CA cert. Without importing it
   # into Java's truststore, Gradle/Maven fail to download dependencies through the proxy,
   # causing errors that look like cache corruption.
@@ -169,7 +179,7 @@ echo "Creating sandbox: ${SANDBOX_NAME}..."
     fi
   '
 
-  # Step 7: Apply network policy if allowed-hosts.txt exists
+  # Step 8: Apply network policy if allowed-hosts.txt exists
   HOSTS_FILE="${TEMPLATE_DIR}/allowed-hosts.txt"
   if [[ -f "${HOSTS_FILE}" ]]; then
     echo "Applying network policy (deny by default)..."

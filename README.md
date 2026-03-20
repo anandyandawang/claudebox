@@ -68,7 +68,8 @@ If no `allowed-hosts.txt` is present, the sandbox has unrestricted network acces
 2. Creates a git worktree so each session gets its own branch and working directory.
 3. Creates a named sandbox (e.g. `myapp-python-sandbox-20260320-121500`), mounting the worktree, parent repo, and `~/.claude` config.
 4. Symlinks the host `~/.claude` directory into the sandbox for auth and config.
-5. Applies network restrictions if `allowed-hosts.txt` exists (with verification).
-6. Runs Claude Code inside the sandbox with `--dangerously-skip-permissions`.
+5. Copies the workspace to the container's local filesystem for fast I/O — Docker's VirtioFS mounts on macOS have latency that can corrupt build caches. Git operations still use the mounted worktree via the `.git` reference.
+6. Applies network restrictions if `allowed-hosts.txt` exists (with verification).
+7. Runs Claude Code inside the sandbox with `--dangerously-skip-permissions`.
 
 Each run creates a new sandbox with its own git worktree, so multiple sessions can work on independent branches in parallel.
