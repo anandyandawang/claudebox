@@ -113,12 +113,21 @@ else
     docker sandbox exec "${SANDBOX_NAME}" sh -c "echo 'export GITHUB_USERNAME=${GITHUB_USERNAME}' >> /etc/sandbox-persistent.sh"
   fi
 
-  # Step 5: Configure JVM proxy so Java respects the sandbox HTTP proxy (template-agnostic)
+  # Step 5: Configure JVM proxy so Java respects the sandbox HTTP proxy.
+  # The sandbox MITM proxy intercepts HTTPS with its own CA cert. Without importing it
+  # into Java's truststore, Gradle/Maven fail to download dependencies through the proxy,
+  # causing errors that look like cache corruption.
   docker sandbox exec "${SANDBOX_NAME}" sh -c '
     if [ -n "$HTTPS_PROXY" ]; then
       PROXY_HOST=$(echo "$HTTPS_PROXY" | sed -E "s|https?://||;s|:.*||")
       PROXY_PORT=$(echo "$HTTPS_PROXY" | sed -E "s|.*:([0-9]+).*|\1|")
       echo "export JAVA_TOOL_OPTIONS=\"-Dhttp.proxyHost=${PROXY_HOST} -Dhttp.proxyPort=${PROXY_PORT} -Dhttps.proxyHost=${PROXY_HOST} -Dhttps.proxyPort=${PROXY_PORT}\"" >> /etc/sandbox-persistent.sh
+    fi
+
+    JAVA_HOME=$(java -XshowSettings:properties 2>&1 | grep "java.home" | awk "{print \$3}")
+    PROXY_CERT=$(find /usr/local/share/ca-certificates -name "*.crt" 2>/dev/null | head -1)
+    if [ -n "$PROXY_CERT" ] && [ -n "$JAVA_HOME" ]; then
+      sudo keytool -import -trustcacerts -cacerts -storepass changeit -noprompt -alias proxy-ca -file "$PROXY_CERT" 2>/dev/null || true
     fi
   '
 
