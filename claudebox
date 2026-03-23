@@ -274,7 +274,7 @@ echo "Creating sandbox: ${SANDBOX_NAME}..."
   "
   setup_environment "${SANDBOX_NAME}"
 
-  # Step 6: Apply network policy if allowed-hosts.txt exists
+  # Step 5: Apply network policy if allowed-hosts.txt exists
   HOSTS_FILE="${TEMPLATE_DIR}/allowed-hosts.txt"
   if [[ -f "${HOSTS_FILE}" ]]; then
     echo "Applying network policy (deny by default)..."
