@@ -54,6 +54,29 @@ setup_environment() {
   '
 }
 
+wrap_claude_binary() {
+  local sandbox_name="$1"
+  # Wrap the claude binary so it cd's to the local workspace before starting.
+  # docker sandbox run always starts in the mounted workspace, but we need Claude Code's
+  # project directory to be the local copy so Edit/Read/Glob and Bash all use the same files.
+  #
+  # Guard: only move the original binary if claude-real doesn't already exist.
+  # Without this, resuming a sandbox would rename the wrapper to claude-real,
+  # destroying the real binary and creating an infinite exec loop.
+  docker sandbox exec "${sandbox_name}" sh -c '
+    CLAUDE_BIN=$(which claude)
+    if [ ! -f "${CLAUDE_BIN}-real" ]; then
+      sudo mv "$CLAUDE_BIN" "${CLAUDE_BIN}-real"
+    fi
+    sudo tee "$CLAUDE_BIN" > /dev/null << WRAPPER
+#!/bin/bash
+cd /home/agent/workspace
+exec "\$(dirname "\$0")/claude-real" "\$@"
+WRAPPER
+    sudo chmod +x "$CLAUDE_BIN"
+  '
+}
+
 usage() {
   echo "Usage: $(basename "$0") <template> [workspace] [-- agent_args...]"
   echo "       $(basename "$0") rm <sandbox-name|all>"
@@ -218,19 +241,7 @@ echo "Creating sandbox: ${SANDBOX_NAME}..."
 
 refresh_credentials "${SANDBOX_NAME}"
 
-# Wrap the claude binary so it cd's to the local workspace before starting.
-# docker sandbox run always starts in the mounted workspace, but we need Claude Code's
-# project directory to be the local copy so Edit/Read/Glob and Bash all use the same files.
-docker sandbox exec "${SANDBOX_NAME}" sh -c '
-  CLAUDE_BIN=$(which claude)
-  sudo mv "$CLAUDE_BIN" "${CLAUDE_BIN}-real"
-  sudo tee "$CLAUDE_BIN" > /dev/null << WRAPPER
-#!/bin/bash
-cd /home/agent/workspace
-exec "\$(dirname "\$0")/claude-real" "\$@"
-WRAPPER
-  sudo chmod +x "$CLAUDE_BIN"
-'
+wrap_claude_binary "${SANDBOX_NAME}"
 
 # Run the sandbox
 echo "Starting sandbox..."
