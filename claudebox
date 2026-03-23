@@ -10,6 +10,21 @@ while [[ -L "$SOURCE" ]]; do
 done
 SCRIPT_DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
 
+refresh_credentials() {
+  local sandbox_name="$1"
+  echo "Refreshing credentials from macOS Keychain..."
+  local creds
+  creds="$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null)" || {
+    echo "WARNING: No credentials found in Keychain. You may need to re-authenticate inside the sandbox." >&2
+    creds=""
+  }
+  if [[ -n "$creds" ]]; then
+    local creds_b64
+    creds_b64="$(printf '%s' "$creds" | base64)"
+    docker sandbox exec "${sandbox_name}" sh -c "echo '${creds_b64}' | tr -d '[:space:]' | base64 -d > /home/agent/.claude/.credentials.json && chmod 600 /home/agent/.claude/.credentials.json"
+  fi
+}
+
 usage() {
   echo "Usage: $(basename "$0") <template> [workspace] [-- agent_args...]"
   echo "       $(basename "$0") rm <sandbox-name|all>"
@@ -193,16 +208,7 @@ echo "Creating sandbox: ${SANDBOX_NAME}..."
   fi
 }
 
-# Refresh credentials from macOS Keychain on every launch
-echo "Refreshing credentials from macOS Keychain..."
-CREDS="$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null)" || {
-  echo "WARNING: No credentials found in Keychain. You may need to re-authenticate inside the sandbox." >&2
-  CREDS=""
-}
-if [[ -n "$CREDS" ]]; then
-  CREDS_B64="$(printf '%s' "$CREDS" | base64)"
-  docker sandbox exec "${SANDBOX_NAME}" sh -c "echo '${CREDS_B64}' | tr -d '[:space:]' | base64 -d > /home/agent/.claude/.credentials.json && chmod 600 /home/agent/.claude/.credentials.json"
-fi
+refresh_credentials "${SANDBOX_NAME}"
 
 # Wrap the claude binary so it cd's to the local workspace before starting.
 # docker sandbox run always starts in the mounted workspace, but we need Claude Code's
