@@ -1,32 +1,15 @@
 #!/usr/bin/env bats
-# tests/claudebox.bats — unit tests for the top-level claudebox dispatcher
+# tests/unit/claudebox.bats — unit tests for the top-level claudebox dispatcher
 
-load 'test_helper/common'
+load "../test_helper/unit"
 
 setup() {
-  # Create a temp directory for mock binaries and prepend to PATH
-  MOCK_BIN_DIR="$(mktemp -d "${BATS_TEST_TMPDIR}/mock-bin.XXXXXX")"
-  export MOCK_BIN_DIR
-  export PATH="${MOCK_BIN_DIR}:${PATH}"
-
-  # Log file where mock docker records its invocations
-  MOCK_DOCKER_LOG="${BATS_TEST_TMPDIR}/docker-calls.log"
-  export MOCK_DOCKER_LOG
-  : > "${MOCK_DOCKER_LOG}"
-
-  # Resolve repo root from this file's location
-  SCRIPT_DIR="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
-  export SCRIPT_DIR
-
-  # Path to the claudebox script under test
+  common_setup
   CLAUDEBOX="${SCRIPT_DIR}/claudebox"
-
-  # Install default docker mock (logs invocations, exits 0)
-  create_mock "docker"
 }
 
 teardown() {
-  rm -rf "${MOCK_BIN_DIR}" 2>/dev/null || true
+  common_teardown
 }
 
 # ---------------------------------------------------------------------------

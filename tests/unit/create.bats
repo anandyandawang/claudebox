@@ -1,27 +1,14 @@
 #!/usr/bin/env bats
-# tests/create.bats — unit tests for commands/create.sh
+# tests/unit/create.bats — unit tests for commands/create.sh
 
-load "test_helper/bats-support/load"
-load "test_helper/bats-assert/load"
+load "../test_helper/unit"
 
 # ---------------------------------------------------------------------------
 # Setup / Teardown
 # ---------------------------------------------------------------------------
 
 setup() {
-  # Create a temp directory for mock binaries and prepend to PATH
-  MOCK_BIN_DIR="$(mktemp -d "${BATS_TEST_TMPDIR}/mock-bin.XXXXXX")"
-  export MOCK_BIN_DIR
-  export PATH="${MOCK_BIN_DIR}:${PATH}"
-
-  # Log file where mock docker records its invocations
-  MOCK_DOCKER_LOG="${BATS_TEST_TMPDIR}/docker-calls.log"
-  export MOCK_DOCKER_LOG
-  : > "${MOCK_DOCKER_LOG}"
-
-  # Resolve repo root from this file's location
-  SCRIPT_DIR="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
-  export SCRIPT_DIR
+  common_setup
 
   # Mock date to return a fixed value for deterministic sandbox names
   create_mock "date" "20260323-120000"
@@ -29,49 +16,15 @@ setup() {
   # Mock security to fail (skip credential writing)
   create_mock "security" "" 1
 
-  # Install default docker mock (logs invocations, exits 0)
-  create_mock "docker"
-
   # Source the files under test
-  # shellcheck source=../src/lib/helpers.sh
+  # shellcheck source=../../src/lib/helpers.sh
   source "${SCRIPT_DIR}/src/lib/helpers.sh"
-  # shellcheck source=../src/commands/create.sh
+  # shellcheck source=../../src/commands/create.sh
   source "${SCRIPT_DIR}/src/commands/create.sh"
 }
 
 teardown() {
-  rm -rf "${MOCK_BIN_DIR}" 2>/dev/null || true
-}
-
-# ---------------------------------------------------------------------------
-# Helper: create_mock / create_mock_script
-# ---------------------------------------------------------------------------
-
-create_mock() {
-  local name="$1"
-  local output="${2:-}"
-  local exit_code="${3:-0}"
-
-  cat > "${MOCK_BIN_DIR}/${name}" <<MOCK
-#!/usr/bin/env bash
-echo "${name} \$*" >> "\${MOCK_DOCKER_LOG}"
-if [[ -n "${output}" ]]; then
-  echo "${output}"
-fi
-exit ${exit_code}
-MOCK
-  chmod +x "${MOCK_BIN_DIR}/${name}"
-}
-
-create_mock_script() {
-  local name="$1"
-  local body="$2"
-
-  cat > "${MOCK_BIN_DIR}/${name}" <<MOCK
-#!/usr/bin/env bash
-${body}
-MOCK
-  chmod +x "${MOCK_BIN_DIR}/${name}"
+  common_teardown
 }
 
 # ---------------------------------------------------------------------------
