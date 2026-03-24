@@ -10,7 +10,7 @@ while [[ -L "$SOURCE" ]]; do
 done
 SCRIPT_DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
 
-source "${SCRIPT_DIR}/lib/helpers.sh"
+source "${SCRIPT_DIR}/src/lib/helpers.sh"
 
 usage() {
   echo "Usage: $(basename "$0") <template> [workspace] [-- agent_args...]"
@@ -31,7 +31,7 @@ usage() {
   echo "  resume       Resume an existing sandbox (interactive picker)"
   echo ""
   echo "Available templates:"
-  for dir in "${SCRIPT_DIR}"/*/; do
+  for dir in "${SCRIPT_DIR}/templates"/*/; do
     if [[ -f "${dir}Dockerfile" ]]; then
       echo "  $(basename "$dir")"
     fi
@@ -43,22 +43,22 @@ usage() {
 
 case "$1" in
   ls)
-    source "${SCRIPT_DIR}/commands/ls.sh"
+    source "${SCRIPT_DIR}/src/commands/ls.sh"
     shift
     cmd_ls "$@"
     ;;
   rm)
-    source "${SCRIPT_DIR}/commands/rm.sh"
+    source "${SCRIPT_DIR}/src/commands/rm.sh"
     shift
     cmd_rm "$@"
     ;;
   resume)
-    source "${SCRIPT_DIR}/commands/resume.sh"
+    source "${SCRIPT_DIR}/src/commands/resume.sh"
     shift
     cmd_resume "$@"
     ;;
   *)
-    source "${SCRIPT_DIR}/commands/create.sh"
+    source "${SCRIPT_DIR}/src/commands/create.sh"
     cmd_create "$@"
     ;;
 esac
