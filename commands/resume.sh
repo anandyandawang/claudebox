@@ -19,7 +19,7 @@ cmd_resume() {
   done
 
   # List sandboxes for this workspace
-  WORKSPACE_NAME="$(basename "$(pwd)" | tr -cs 'a-zA-Z0-9_.-' '-')"
+  WORKSPACE_NAME="$(printf '%s' "$(basename "$(pwd)")" | tr -cs 'a-zA-Z0-9_.-' '-')"
   SANDBOXES=()
   while IFS= read -r name; do
     [[ -z "$name" ]] && continue
