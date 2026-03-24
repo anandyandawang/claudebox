@@ -35,10 +35,10 @@ setup() {
   '
 
   # Source the files under test (for direct calls in error-path tests)
-  # shellcheck source=../lib/helpers.sh
-  source "${SCRIPT_DIR}/lib/helpers.sh"
-  # shellcheck source=../commands/resume.sh
-  source "${SCRIPT_DIR}/commands/resume.sh"
+  # shellcheck source=../src/lib/helpers.sh
+  source "${SCRIPT_DIR}/src/lib/helpers.sh"
+  # shellcheck source=../src/commands/resume.sh
+  source "${SCRIPT_DIR}/src/commands/resume.sh"
 }
 
 teardown() {
@@ -110,8 +110,8 @@ MOCK
 
 @test "cmd_resume: auto-selects single sandbox when user confirms" {
   run bash -c '
-    source "${SCRIPT_DIR}/lib/helpers.sh"
-    source "${SCRIPT_DIR}/commands/resume.sh"
+    source "${SCRIPT_DIR}/src/lib/helpers.sh"
+    source "${SCRIPT_DIR}/src/commands/resume.sh"
     cd "${BATS_TEST_TMPDIR}/testproject"
     echo "Y" | cmd_resume
   '
@@ -123,8 +123,8 @@ MOCK
 
 @test "cmd_resume: exits cleanly when user declines single sandbox" {
   run bash -c '
-    source "${SCRIPT_DIR}/lib/helpers.sh"
-    source "${SCRIPT_DIR}/commands/resume.sh"
+    source "${SCRIPT_DIR}/src/lib/helpers.sh"
+    source "${SCRIPT_DIR}/src/commands/resume.sh"
     cd "${BATS_TEST_TMPDIR}/testproject"
     echo "n" | cmd_resume
   '
@@ -146,8 +146,8 @@ MOCK
   '
 
   run bash -c '
-    source "${SCRIPT_DIR}/lib/helpers.sh"
-    source "${SCRIPT_DIR}/commands/resume.sh"
+    source "${SCRIPT_DIR}/src/lib/helpers.sh"
+    source "${SCRIPT_DIR}/src/commands/resume.sh"
     cd "${BATS_TEST_TMPDIR}/testproject"
     echo "2" | cmd_resume
   '
@@ -165,8 +165,8 @@ MOCK
   '
 
   run bash -c '
-    source "${SCRIPT_DIR}/lib/helpers.sh"
-    source "${SCRIPT_DIR}/commands/resume.sh"
+    source "${SCRIPT_DIR}/src/lib/helpers.sh"
+    source "${SCRIPT_DIR}/src/commands/resume.sh"
     cd "${BATS_TEST_TMPDIR}/testproject"
     printf "99\n1\n" | cmd_resume
   '
@@ -185,8 +185,8 @@ MOCK
   create_mock "security" "" 1
 
   run bash -c '
-    source "${SCRIPT_DIR}/lib/helpers.sh"
-    source "${SCRIPT_DIR}/commands/resume.sh"
+    source "${SCRIPT_DIR}/src/lib/helpers.sh"
+    source "${SCRIPT_DIR}/src/commands/resume.sh"
     cd "${BATS_TEST_TMPDIR}/testproject"
     echo "Y" | cmd_resume
   '
@@ -203,8 +203,8 @@ MOCK
   create_mock "security" "" 1
 
   run bash -c '
-    source "${SCRIPT_DIR}/lib/helpers.sh"
-    source "${SCRIPT_DIR}/commands/resume.sh"
+    source "${SCRIPT_DIR}/src/lib/helpers.sh"
+    source "${SCRIPT_DIR}/src/commands/resume.sh"
     cd "${BATS_TEST_TMPDIR}/testproject"
     echo "Y" | cmd_resume -- -p "fix the tests"
   '

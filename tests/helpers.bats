@@ -25,8 +25,8 @@ setup() {
   create_mock "docker"
 
   # Source the file under test
-  # shellcheck source=../lib/helpers.sh
-  source "${SCRIPT_DIR}/lib/helpers.sh"
+  # shellcheck source=../src/lib/helpers.sh
+  source "${SCRIPT_DIR}/src/lib/helpers.sh"
 }
 
 teardown() {

@@ -33,10 +33,10 @@ setup() {
   create_mock "docker"
 
   # Source the files under test
-  # shellcheck source=../lib/helpers.sh
-  source "${SCRIPT_DIR}/lib/helpers.sh"
-  # shellcheck source=../commands/create.sh
-  source "${SCRIPT_DIR}/commands/create.sh"
+  # shellcheck source=../src/lib/helpers.sh
+  source "${SCRIPT_DIR}/src/lib/helpers.sh"
+  # shellcheck source=../src/commands/create.sh
+  source "${SCRIPT_DIR}/src/commands/create.sh"
 }
 
 teardown() {
@@ -83,8 +83,8 @@ MOCK
 setup_fake_template() {
   local template_name="$1"
   local fake_root="${BATS_TEST_TMPDIR}/fake-script-dir"
-  mkdir -p "${fake_root}/${template_name}"
-  touch "${fake_root}/${template_name}/Dockerfile"
+  mkdir -p "${fake_root}/templates/${template_name}"
+  touch "${fake_root}/templates/${template_name}/Dockerfile"
   export SCRIPT_DIR="${fake_root}"
 }
 
@@ -94,7 +94,7 @@ setup_fake_template() {
 
 @test "cmd_create: fails when template has no Dockerfile" {
   local fake_root="${BATS_TEST_TMPDIR}/empty-script-dir"
-  mkdir -p "${fake_root}/mytemplate"
+  mkdir -p "${fake_root}/templates/mytemplate"
   # No Dockerfile created
   export SCRIPT_DIR="${fake_root}"
 
@@ -264,7 +264,7 @@ setup_fake_template() {
 
   # Create allowed-hosts.txt with comments and 3 real hosts (no blank lines to avoid
   # macOS BRE grep -c quirk where \| alternation doesn't work and blank lines are counted)
-  local template_dir="${BATS_TEST_TMPDIR}/fake-script-dir/mytemplate"
+  local template_dir="${BATS_TEST_TMPDIR}/fake-script-dir/templates/mytemplate"
   cat > "${template_dir}/allowed-hosts.txt" <<'EOF'
 # This is a comment
 # Another comment
@@ -311,7 +311,7 @@ EOF
   setup_fake_template "mytemplate"
 
   # Create allowed-hosts.txt so network policy path is taken
-  local template_dir="${BATS_TEST_TMPDIR}/fake-script-dir/mytemplate"
+  local template_dir="${BATS_TEST_TMPDIR}/fake-script-dir/templates/mytemplate"
   cat > "${template_dir}/allowed-hosts.txt" <<'EOF'
 pypi.org
 api.github.com
