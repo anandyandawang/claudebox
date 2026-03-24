@@ -13,7 +13,7 @@ setup_file() {
   CLEANUP_WORKSPACE="$(create_test_workspace "cb-cleanup-$$")"
   export CLEANUP_WORKSPACE
 
-  build_template_image "python"
+  build_template_image "jvm"
 }
 
 teardown_file() {
@@ -26,7 +26,7 @@ teardown_file() {
 }
 
 @test "rm removes a specific sandbox" {
-  create_test_sandbox "python" "$CLEANUP_WORKSPACE"
+  create_test_sandbox "jvm" "$CLEANUP_WORKSPACE"
   local target="$SANDBOX_NAME"
 
   # Verify it exists
@@ -43,10 +43,10 @@ teardown_file() {
 }
 
 @test "rm all removes all sandboxes for workspace" {
-  create_test_sandbox "python" "$CLEANUP_WORKSPACE"
+  create_test_sandbox "jvm" "$CLEANUP_WORKSPACE"
   local sandbox1="$SANDBOX_NAME"
   sleep 1  # Ensure different timestamp for unique sandbox name
-  create_test_sandbox "python" "$CLEANUP_WORKSPACE"
+  create_test_sandbox "jvm" "$CLEANUP_WORKSPACE"
   local sandbox2="$SANDBOX_NAME"
 
   # Both should exist

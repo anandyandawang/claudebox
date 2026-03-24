@@ -9,8 +9,8 @@ setup_file() {
   INTTEST_WORKSPACE="$(create_test_workspace "cb-fs-$$")"
   export INTTEST_WORKSPACE
 
-  build_template_image "python"
-  create_test_sandbox "python" "$INTTEST_WORKSPACE"
+  build_template_image "jvm"
+  create_test_sandbox "jvm" "$INTTEST_WORKSPACE"
 }
 
 teardown_file() {

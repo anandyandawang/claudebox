@@ -18,7 +18,7 @@ require_docker_sandbox() {
 }
 
 # Build a template image (quiet mode).
-# Usage: build_template_image "python"
+# Usage: build_template_image "jvm"
 build_template_image() {
   local template="$1"
   docker build -q -t "${template}-sandbox" "${SCRIPT_DIR}/templates/${template}"
@@ -26,7 +26,7 @@ build_template_image() {
 
 # Create a test sandbox — replicates cmd_create steps 2-4 without running the sandbox.
 # Requires image to be built first via build_template_image.
-# Usage: create_test_sandbox "python" "/path/to/workspace"
+# Usage: create_test_sandbox "jvm" "/path/to/workspace"
 # Sets: SANDBOX_NAME (exported)
 create_test_sandbox() {
   local template="$1"
@@ -59,7 +59,7 @@ create_test_sandbox() {
 }
 
 # Apply network policy from a template's allowed-hosts.txt.
-# Usage: apply_network_policy "python"
+# Usage: apply_network_policy "jvm"
 apply_network_policy() {
   local template="$1"
   local hosts_file="${SCRIPT_DIR}/templates/${template}/allowed-hosts.txt"

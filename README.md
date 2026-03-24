@@ -9,14 +9,14 @@ Run [Claude Code](https://docs.anthropic.com/en/docs/claude-code) inside sandbox
 ## Quick start
 
 ```bash
-# Run Claude Code in a Python sandbox against the current directory
-claudebox python
+# Run Claude Code in a JVM sandbox against the current directory
+claudebox jvm
 
-# Run in a JVM sandbox against a specific workspace
+# Run against a specific workspace
 claudebox jvm ~/projects/my-app
 
 # Pass additional arguments to the agent
-claudebox python ~/projects/my-app -- -p "fix the tests"
+claudebox jvm ~/projects/my-app -- -p "fix the tests"
 
 # List all sandboxes
 claudebox ls
@@ -28,7 +28,7 @@ claudebox resume
 claudebox resume -- -p "continue where you left off"
 
 # Remove a specific sandbox
-claudebox rm myapp-python-sandbox-20260320-121500
+claudebox rm myapp-jvm-sandbox-20260320-121500
 
 # Remove all sandboxes for the current directory
 claudebox rm all
@@ -48,7 +48,6 @@ Each subdirectory under `templates/` with a `Dockerfile` is a template. Built-in
 
 | Template | What's included |
 |----------|----------------|
-| `python` | Python 3, pip, pytest, black, pylint |
 | `jvm`    | Temurin JDK 21, Gradle/Maven repos, git-delta, fzf |
 
 ### Creating a template

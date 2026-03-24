@@ -28,11 +28,10 @@ teardown() {
 # Test 2: Lists available templates in usage
 # ---------------------------------------------------------------------------
 
-@test "claudebox: lists available templates (python and jvm) in usage" {
+@test "claudebox: lists available templates (jvm) in usage" {
   run "${CLAUDEBOX}"
 
   assert_failure
-  assert_output --partial "python"
   assert_output --partial "jvm"
 }
 
@@ -73,7 +72,7 @@ teardown() {
 # Test 5: Routes unknown command to cmd_create (template mode)
 # ---------------------------------------------------------------------------
 
-@test "claudebox: routes unknown command to cmd_create (python template)" {
+@test "claudebox: routes unknown command to cmd_create (jvm template)" {
   # Mock docker: log all calls; fail curl to example.com (firewall verification);
   # succeed for all other docker commands.
   create_mock_script "docker" '
@@ -89,9 +88,9 @@ teardown() {
   # Mock security to fail (no credentials in keychain)
   create_mock "security" "" 1
 
-  run "${CLAUDEBOX}" python
+  run "${CLAUDEBOX}" jvm
 
   assert_success
-  run grep "docker build -t python-sandbox" "${MOCK_DOCKER_LOG}"
+  run grep "docker build -t jvm-sandbox" "${MOCK_DOCKER_LOG}"
   assert_success
 }

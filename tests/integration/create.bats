@@ -8,12 +8,6 @@ teardown() {
   cleanup_test_sandbox 2>/dev/null || true
 }
 
-@test "python template image builds successfully" {
-  require_docker_sandbox
-  run build_template_image "python"
-  assert_success
-}
-
 @test "jvm template image builds successfully" {
   require_docker_sandbox
   run build_template_image "jvm"
@@ -26,9 +20,9 @@ teardown() {
   local workspace
   workspace="$(create_test_workspace "cb-create-$$")"
 
-  build_template_image "python"
-  create_test_sandbox "python" "$workspace"
+  build_template_image "jvm"
+  create_test_sandbox "jvm" "$workspace"
 
-  # Verify name matches: <workspace>-python-sandbox-YYYYMMDD-HHMMSS
-  [[ "$SANDBOX_NAME" =~ ^cb-create-[0-9]+-python-sandbox-[0-9]{8}-[0-9]{6}$ ]]
+  # Verify name matches: <workspace>-jvm-sandbox-YYYYMMDD-HHMMSS
+  [[ "$SANDBOX_NAME" =~ ^cb-create-[0-9]+-jvm-sandbox-[0-9]{8}-[0-9]{6}$ ]]
 }

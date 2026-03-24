@@ -9,9 +9,9 @@ setup_file() {
   INTTEST_WORKSPACE="$(create_test_workspace "cb-net-$$")"
   export INTTEST_WORKSPACE
 
-  build_template_image "python"
-  create_test_sandbox "python" "$INTTEST_WORKSPACE"
-  apply_network_policy "python"
+  build_template_image "jvm"
+  create_test_sandbox "jvm" "$INTTEST_WORKSPACE"
+  apply_network_policy "jvm"
 }
 
 teardown_file() {
@@ -32,7 +32,7 @@ teardown_file() {
   # Create a temporary template with no allowed-hosts.txt
   local tmp_template="${BATS_FILE_TMPDIR}/nofilter-tpl"
   mkdir -p "$tmp_template"
-  cp "${SCRIPT_DIR}/templates/python/Dockerfile" "$tmp_template/Dockerfile"
+  cp "${SCRIPT_DIR}/templates/jvm/Dockerfile" "$tmp_template/Dockerfile"
 
   # Build image from temporary template
   docker build -q -t "nofilter-sandbox" "$tmp_template"
