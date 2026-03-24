@@ -37,12 +37,16 @@ Tests that need custom mock behavior override the stub per-test by writing a new
 ### Other mocked binaries
 
 - `security` (macOS Keychain CLI) — mocked the same way for `refresh_credentials` tests
-- `curl` — mocked for network policy verification tests in `create.sh`
+- `curl` — not mocked directly; `curl` calls in `create.sh` run inside `docker sandbox exec`, so the `docker` mock handles them. The mock inspects exec arguments: when the command contains `curl` and `example.com`, it returns exit code 1 (blocked); when it contains `curl` and `api.github.com`, it returns exit code 0 (allowed). Firewall-failure tests flip these.
 - `date` — mocked to return a fixed timestamp so sandbox name assertions are deterministic
 
 ### SCRIPT_DIR
 
 `common.bash` sets `SCRIPT_DIR` to the real repo root. Tests that need a fake template directory (e.g., to test missing Dockerfile) create one in `$BATS_TEST_TMPDIR` and override `SCRIPT_DIR` for that test.
+
+### Docker mock output format
+
+`docker sandbox ls` outputs a header line followed by data rows. Mock output for `resume` and `rm all` tests must include this header so that `awk 'NR>1 {print $1}'` and `grep` patterns work correctly.
 
 ### Stdin for interactive prompts
 
@@ -77,6 +81,7 @@ Every test file uses a bats `teardown` function to clean up the temp mock direct
 - Firewall verification succeeds (blocked host fails, allowed host succeeds)
 - Firewall verification fails — aborts when blocked host is reachable
 - Skips network policy when no `allowed-hosts.txt`
+- Calls setup_environment, refresh_credentials, wrap_claude_binary (verified via mock docker log)
 - Calls `docker sandbox run` with `--dangerously-skip-permissions`
 - Passes agent args through to `docker sandbox run`
 
@@ -86,9 +91,10 @@ Every test file uses a bats `teardown` function to clean up the temp mock direct
 - Removes a named sandbox that exists
 - Prints error when named sandbox not found
 - `docker sandbox rm` failure propagates error on single-sandbox removal
+- Partial name match: `grep -q` matches substrings (e.g., "foo" matches "foobar") — test documents this behavior
 - `rm all` removes only sandboxes matching current workspace name
 - `rm all` prints message when no sandboxes found
-- `rm all` reports count of removed sandboxes
+- `rm all` reports count of attempted removals (note: count includes failures due to `|| true` before increment)
 - `rm all` continues on individual removal failures (uses `|| true`)
 
 ### Resume (`resume.bats`)
@@ -96,6 +102,7 @@ Every test file uses a bats `teardown` function to clean up the temp mock direct
 - Errors when no sandboxes exist for workspace
 - Errors on unknown arguments
 - Auto-selects when exactly one sandbox exists (stdin: "Y")
+- Exits cleanly (exit 0) when user declines single-sandbox confirmation (stdin: "n")
 - Picker works when multiple sandboxes exist (stdin: selection number)
 - Picker rejects invalid input and re-prompts
 - Calls setup_environment, refresh_credentials, wrap_claude_binary on resume
