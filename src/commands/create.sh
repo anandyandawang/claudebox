@@ -4,7 +4,7 @@ cmd_create() {
   TEMPLATE="$1"
   shift
 
-  TEMPLATE_DIR="${SCRIPT_DIR}/${TEMPLATE}"
+  TEMPLATE_DIR="${SCRIPT_DIR}/templates/${TEMPLATE}"
 
   if [[ ! -f "${TEMPLATE_DIR}/Dockerfile" ]]; then
     echo "Error: No Dockerfile found in ${TEMPLATE_DIR}" >&2
