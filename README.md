@@ -44,7 +44,7 @@ ln -s /path/to/claudebox/claudebox /usr/local/bin/claudebox
 
 ## Templates
 
-Each subdirectory with a `Dockerfile` is a template. Built-in templates:
+Each subdirectory under `templates/` with a `Dockerfile` is a template. Built-in templates:
 
 | Template | What's included |
 |----------|----------------|
@@ -57,9 +57,10 @@ Each subdirectory with a `Dockerfile` is a template. Built-in templates:
 2. Optionally add an `allowed-hosts.txt` to restrict network access (deny-by-default).
 
 ```
-my-template/
-  Dockerfile
-  allowed-hosts.txt   # optional
+templates/
+  my-template/
+    Dockerfile
+    allowed-hosts.txt   # optional
 ```
 
 ## Network policy
