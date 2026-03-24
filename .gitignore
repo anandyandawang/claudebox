@@ -23,5 +23,8 @@ venv/
 # Environment
 .env
 .env.local
+
+# Test dependencies (fetched by tests/setup_test_deps.sh)
+tests/bats/
 tests/test_helper/bats-assert/
 tests/test_helper/bats-support/
