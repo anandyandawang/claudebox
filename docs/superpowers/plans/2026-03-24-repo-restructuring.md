@@ -140,7 +140,6 @@ git commit -m "refactor: update create.sh template path to templates/"
 ### Task 4: Update test files
 
 **Files:**
-- Modify: `tests/test_helper/common.bash:9` (SCRIPT_DIR comment)
 - Modify: `tests/helpers.bats:29` (source path)
 - Modify: `tests/ls.bats:31-33` (source paths)
 - Modify: `tests/resume.bats:39-41` (source paths)
