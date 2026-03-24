@@ -24,15 +24,33 @@ tests/
 
 ## Mock Strategy
 
+### Docker mock
+
 `common.bash` creates a temp directory with a `docker` stub script and prepends it to `$PATH`. The stub:
 
 - Logs every invocation (arguments) to `$MOCK_DOCKER_LOG` for assertion
 - Returns canned output controlled by `$MOCK_DOCKER_OUTPUT` (default: empty)
 - Returns exit code controlled by `$MOCK_DOCKER_EXIT_CODE` (default: 0)
 
-For `helpers.sh` tests, `security` (macOS Keychain CLI) is also mocked the same way.
-
 Tests that need custom mock behavior override the stub per-test by writing a new script to the mock directory.
+
+### Other mocked binaries
+
+- `security` (macOS Keychain CLI) — mocked the same way for `refresh_credentials` tests
+- `curl` — mocked for network policy verification tests in `create.sh`
+- `date` — mocked to return a fixed timestamp so sandbox name assertions are deterministic
+
+### SCRIPT_DIR
+
+`common.bash` sets `SCRIPT_DIR` to the real repo root. Tests that need a fake template directory (e.g., to test missing Dockerfile) create one in `$BATS_TEST_TMPDIR` and override `SCRIPT_DIR` for that test.
+
+### Stdin for interactive prompts
+
+`resume.sh` uses `read -r` for confirmation/picker prompts. Tests provide stdin via pipe or `<<<` redirection, e.g., `echo "Y" | cmd_resume` or `run bash -c 'echo 1 | cmd_resume'`.
+
+### Teardown
+
+Every test file uses a bats `teardown` function to clean up the temp mock directory and any other temp files created during the test.
 
 ## What to Test
 
@@ -42,7 +60,7 @@ Tests that need custom mock behavior override the stub per-test by writing a new
 - Routes `ls` to `commands/ls.sh`
 - Routes `rm` to `commands/rm.sh`
 - Routes `resume` to `commands/resume.sh`
-- Routes unknown command to `commands/create.sh` (template mode)
+- Routes unknown command to `commands/create.sh` (template mode), forwarding the template name as first arg
 - Lists available templates in usage output
 
 ### Create (`create.bats`)
@@ -50,10 +68,14 @@ Tests that need custom mock behavior override the stub per-test by writing a new
 - Fails with error when template has no Dockerfile
 - Parses workspace argument (defaults to pwd)
 - Parses agent args after `--`
-- Generates sandbox name from workspace basename, template, and timestamp
+- Generates sandbox name from workspace basename, template, and fixed timestamp
 - Calls `docker build` with correct image name and template dir
 - Calls `docker sandbox create` with correct arguments
-- Applies network policy when `allowed-hosts.txt` exists
+- Calls `docker sandbox exec` to symlink host config (.claude.json, settings.json, plugins)
+- Calls `docker sandbox exec` to copy workspace and create session branch
+- Applies network policy when `allowed-hosts.txt` exists (including parsing comments/blank lines)
+- Firewall verification succeeds (blocked host fails, allowed host succeeds)
+- Firewall verification fails — aborts when blocked host is reachable
 - Skips network policy when no `allowed-hosts.txt`
 - Calls `docker sandbox run` with `--dangerously-skip-permissions`
 - Passes agent args through to `docker sandbox run`
@@ -63,15 +85,19 @@ Tests that need custom mock behavior override the stub per-test by writing a new
 - Shows usage when called with no args
 - Removes a named sandbox that exists
 - Prints error when named sandbox not found
+- `docker sandbox rm` failure propagates error on single-sandbox removal
 - `rm all` removes only sandboxes matching current workspace name
 - `rm all` prints message when no sandboxes found
 - `rm all` reports count of removed sandboxes
+- `rm all` continues on individual removal failures (uses `|| true`)
 
 ### Resume (`resume.bats`)
 
 - Errors when no sandboxes exist for workspace
 - Errors on unknown arguments
-- Auto-selects when exactly one sandbox exists (simulated confirmation)
+- Auto-selects when exactly one sandbox exists (stdin: "Y")
+- Picker works when multiple sandboxes exist (stdin: selection number)
+- Picker rejects invalid input and re-prompts
 - Calls setup_environment, refresh_credentials, wrap_claude_binary on resume
 - Passes agent args after `--` through to `docker sandbox run`
 
@@ -81,6 +107,7 @@ Tests that need custom mock behavior override the stub per-test by writing a new
 - `refresh_credentials`: warns when no credentials found
 - `setup_environment`: truncates persistent env file
 - `setup_environment`: exports GITHUB_USERNAME when set
+- `setup_environment`: configures JVM proxy when HTTPS_PROXY is set
 - `wrap_claude_binary`: creates wrapper script
 - `wrap_claude_binary`: does not overwrite existing claude-real (idempotency)
 
