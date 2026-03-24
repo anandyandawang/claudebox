@@ -42,6 +42,7 @@ Update `SCRIPT_DIR`-relative paths:
 - `source "$SCRIPT_DIR/lib/helpers.sh"` becomes `source "$SCRIPT_DIR/src/lib/helpers.sh"`
 - `source "$SCRIPT_DIR/commands/<cmd>.sh"` becomes `source "$SCRIPT_DIR/src/commands/<cmd>.sh"`
 - Template directory resolution: templates are now at `$SCRIPT_DIR/templates/`
+- `usage()` template-listing glob changes from `"${SCRIPT_DIR}"/*/` to `"${SCRIPT_DIR}/templates"/*/`
 
 ### 2. `src/commands/create.sh`
 
@@ -49,7 +50,7 @@ Update template path resolution from `$SCRIPT_DIR/<template>` to `$SCRIPT_DIR/te
 
 ### 3. Tests
 
-Update source paths in all `.bats` files to reference `src/commands/` and `src/lib/` instead of `commands/` and `lib/`.
+Update source paths in all `.bats` files to reference `src/commands/` and `src/lib/` instead of `commands/` and `lib/`. Also update `create.bats` test helpers that construct fake template directories — these must create templates under `templates/` (e.g., `"${fake_root}/templates/${template_name}"`) to match the new resolution path in `create.sh`.
 
 ### 4. README
 
