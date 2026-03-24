@@ -21,6 +21,12 @@ claudebox python ~/projects/my-app -- -p "fix the tests"
 # List all sandboxes
 claudebox ls
 
+# Resume an existing sandbox (interactive picker)
+claudebox resume
+
+# Resume with additional arguments
+claudebox resume -- -p "continue where you left off"
+
 # Remove a specific sandbox
 claudebox rm myapp-python-sandbox-20260320-121500
 
