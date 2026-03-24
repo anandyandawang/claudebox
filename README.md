@@ -73,3 +73,13 @@ If no `allowed-hosts.txt` is present, the sandbox has unrestricted network acces
 7. Runs Claude Code inside the sandbox with `--dangerously-skip-permissions`.
 
 Each run creates a new sandbox with a fully local copy of the repo on its own branch, so multiple sessions can work independently in parallel.
+
+## Development
+
+### Running tests
+
+```bash
+make test
+```
+
+This fetches test dependencies (bats-core, bats-assert, bats-support) on first run, then executes the test suite. The only prerequisite is git.
