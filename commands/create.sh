@@ -35,7 +35,7 @@ cmd_create() {
   docker build -t "${IMAGE_NAME}" "${TEMPLATE_DIR}"
 
   # Step 2: Create the sandbox, mounting the repo for the initial copy
-  WORKSPACE_NAME="$(basename "${WORKSPACE}" | tr -cs 'a-zA-Z0-9_.-' '-')"
+  WORKSPACE_NAME="$(printf '%s' "$(basename "${WORKSPACE}")" | tr -cs 'a-zA-Z0-9_.-' '-')"
   SESSION_ID="sandbox-$(date +%Y%m%d-%H%M%S)"
   SANDBOX_NAME="${WORKSPACE_NAME}-${TEMPLATE}-${SESSION_ID}"
 

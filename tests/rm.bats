@@ -145,15 +145,12 @@ MOCK
   local workdir="${BATS_TEST_TMPDIR}/myproject"
   mkdir -p "$workdir"
 
-  # Note: WORKSPACE_NAME=$(basename "$(pwd)" | tr -cs 'a-zA-Z0-9_.-' '-') converts
-  # the trailing newline from basename to '-', so WORKSPACE_NAME="myproject-".
-  # The grep pattern becomes "^myproject--[^ ]+" — sandbox names must use double dash.
   create_mock_script "docker" '
     echo "docker $*" >> "${MOCK_DOCKER_LOG}"
     if [[ "$1 $2" == "sandbox ls" ]]; then
-      printf "myproject--sandbox1  running\n"
-      printf "myproject--sandbox2  running\n"
-      printf "otherproject--sandbox  running\n"
+      printf "myproject-sandbox1  running\n"
+      printf "myproject-sandbox2  running\n"
+      printf "otherproject-sandbox  running\n"
     fi
   '
 
@@ -174,7 +171,7 @@ MOCK
   create_mock_script "docker" '
     echo "docker $*" >> "${MOCK_DOCKER_LOG}"
     if [[ "$1 $2" == "sandbox ls" ]]; then
-      echo "otherproject--sandbox  running"
+      echo "otherproject-sandbox  running"
     fi
   '
 
@@ -189,12 +186,11 @@ MOCK
   local workdir="${BATS_TEST_TMPDIR}/myproject3"
   mkdir -p "$workdir"
 
-  # sandbox names use double-dash due to tr converting trailing newline to '-'
   create_mock_script "docker" '
     echo "docker $*" >> "${MOCK_DOCKER_LOG}"
     if [[ "$1 $2" == "sandbox ls" ]]; then
-      printf "myproject3--sandbox1  running\n"
-      printf "myproject3--sandbox2  running\n"
+      printf "myproject3-sandbox1  running\n"
+      printf "myproject3-sandbox2  running\n"
     fi
     if [[ "$1 $2" == "sandbox rm" ]]; then
       exit 1

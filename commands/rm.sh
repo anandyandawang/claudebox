@@ -4,7 +4,7 @@ cmd_rm() {
   [[ $# -lt 1 ]] && { echo "Usage: $(basename "$0") rm <sandbox-name|all>" >&2; return 1; }
 
   if [[ "$1" == "all" ]]; then
-    WORKSPACE_NAME="$(basename "$(pwd)" | tr -cs 'a-zA-Z0-9_.-' '-')"
+    WORKSPACE_NAME="$(printf '%s' "$(basename "$(pwd)")" | tr -cs 'a-zA-Z0-9_.-' '-')"
     SANDBOX_LIST="$(docker sandbox ls 2>/dev/null || true)"
     REMOVED=0
     while IFS= read -r SANDBOX_NAME; do

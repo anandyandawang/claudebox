@@ -165,9 +165,7 @@ setup_fake_template() {
   run cmd_create "mytemplate" "${workspace}"
 
   assert_success
-  # WORKSPACE_NAME = basename("custom-workspace") | tr ... = "custom-workspace-"
-  # SANDBOX_NAME = "custom-workspace--mytemplate-sandbox-20260323-120000"
-  run grep "custom-workspace-" "${MOCK_DOCKER_LOG}"
+  run grep "custom-workspace-mytemplate" "${MOCK_DOCKER_LOG}"
   assert_success
 }
 
