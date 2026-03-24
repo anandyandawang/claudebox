@@ -27,33 +27,40 @@ tests/setup_test_deps.sh           # new
 
 ## Setup Script (`tests/setup_test_deps.sh`)
 
+- `#!/usr/bin/env bash` with `set -euo pipefail`
 - Checks if each dependency directory exists; clones if missing
-- Uses `git clone --depth 1 --branch <tag>` for each:
+- Uses `git clone --depth 1 --branch <tag>` from `https://github.com/bats-core/<repo>.git`
+- Pinned versions (matching what is currently vendored):
   - `bats-core` v1.11.1 -> `tests/bats/`
   - `bats-support` v0.3.0 -> `tests/test_helper/bats-support/`
   - `bats-assert` v2.2.0 -> `tests/test_helper/bats-assert/`
+- On clone failure, removes the partial directory before exiting (trap or explicit check)
 - Idempotent — running twice is a no-op
+- Path-independent — uses script's own location to resolve target dirs
 - No system-level installs required
 
 ## Makefile
 
 ```makefile
-.PHONY: test setup-test-deps
+.PHONY: test setup-test-deps clean
 
 test: setup-test-deps
 	./tests/bats/bin/bats tests/*.bats
 
 setup-test-deps:
 	@./tests/setup_test_deps.sh
+
+clean:
+	rm -rf tests/bats tests/test_helper/bats-support tests/test_helper/bats-assert
 ```
 
 ## Cleanup
 
-- Delete currently vendored `tests/test_helper/bats-assert/` and `tests/test_helper/bats-support/`
+- Remove existing local copies of `tests/test_helper/bats-assert/` and `tests/test_helper/bats-support/` so they are re-fetched at the pinned versions (these are already gitignored and not tracked by git)
 - Update `.gitignore`: add `tests/bats/` entry (the two existing `bats-assert` and `bats-support` entries stay)
 - No changes to `.bats` files — existing `load` paths remain valid
-- Update README to document `make test`
+- Update README: add `make test` to quick start, note git is the only prerequisite for running tests
 
 ## Version Pinning
 
-Tags are pinned in `setup_test_deps.sh`. To update a dependency, bump the tag and delete the local directory. These libraries are mature and rarely change.
+Tags are pinned in `setup_test_deps.sh`. To update a dependency, run `make clean` then `make test` after bumping the tag. These libraries are mature and rarely change.
