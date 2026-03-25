@@ -4,6 +4,7 @@ Run [Claude Code](https://docs.anthropic.com/en/docs/claude-code) inside sandbox
 
 ## Prerequisites
 
+- [Go](https://go.dev/dl/) 1.21+
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) with sandbox support enabled
 
 ## Quick start
@@ -36,10 +37,17 @@ claudebox rm all
 
 ## Installation
 
-Symlink the script onto your PATH:
+Build and symlink the binary onto your PATH:
 
 ```bash
+make build
 ln -s /path/to/claudebox/claudebox /usr/local/bin/claudebox
+```
+
+Or build directly:
+
+```bash
+go build -o claudebox ./cmd/claudebox
 ```
 
 ## Templates
@@ -85,7 +93,14 @@ Each run creates a new sandbox with a fully local copy of the repo on its own br
 ### Running tests
 
 ```bash
+# Unit tests
 make test
+
+# Integration tests (requires Docker)
+make test-integration
+
+# Both
+make test-all
 ```
 
-This fetches test dependencies (bats-core, bats-assert, bats-support) on first run, then executes the test suite. The only prerequisite is git.
+Prerequisites: Go 1.21+ and Docker (for integration tests).

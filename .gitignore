@@ -28,3 +28,6 @@ venv/
 tests/bats/
 tests/test_helper/bats-assert/
 tests/test_helper/bats-support/
+
+# Go build output
+claudebox
