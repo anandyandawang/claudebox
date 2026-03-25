@@ -1,6 +1,9 @@
+// cmd/claudebox/main.go
 package main
 
 import (
+	"claudebox/internal/commands"
+	"claudebox/internal/docker"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,7 +17,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
-	_ = templatesDir // used in later tasks
+
+	d := docker.NewClient()
 
 	rootCmd := &cobra.Command{
 		Use:   "claudebox [template] [workspace] [-- agent_args...]",
@@ -24,18 +28,19 @@ with per-template toolchains and network restrictions.
 
 Each run creates a new sandbox with a local copy of the repo,
 so multiple sessions can work on independent branches in parallel.`,
+		Args: cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return cmd.Help()
+			}
+			return commands.RunCreate(d, templatesDir, args)
+		},
 	}
 
 	rootCmd.AddCommand(
-		&cobra.Command{Use: "ls", Short: "List all sandboxes", RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("not implemented")
-		}},
-		&cobra.Command{Use: "rm", Short: "Remove sandboxes", RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("not implemented")
-		}},
-		&cobra.Command{Use: "resume", Short: "Resume an existing sandbox", RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("not implemented")
-		}},
+		commands.NewLsCmd(d),
+		commands.NewRmCmd(d),
+		commands.NewResumeCmd(d, templatesDir),
 	)
 
 	if err := rootCmd.Execute(); err != nil {
@@ -43,8 +48,6 @@ so multiple sessions can work on independent branches in parallel.`,
 	}
 }
 
-// findTemplatesDir resolves the templates directory relative to the binary,
-// following symlinks (same behavior as the Bash version).
 func findTemplatesDir() (string, error) {
 	exe, err := os.Executable()
 	if err != nil {
