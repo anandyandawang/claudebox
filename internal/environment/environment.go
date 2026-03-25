@@ -15,7 +15,7 @@ func Setup(d docker.Docker, sandboxName string) error {
 		return fmt.Errorf("truncating persistent env: %w", err)
 	}
 
-	// Export GITHUB_USERNAME if set
+	// Export GITHUB_USERNAME if set (GITHUB_TOKEN is auto-injected by `docker sandbox run`)
 	if username := os.Getenv("GITHUB_USERNAME"); username != "" {
 		script := fmt.Sprintf("printf 'export GITHUB_USERNAME=%%s\\n' %q >> /etc/sandbox-persistent.sh", username)
 		if _, err := d.SandboxExec(sandboxName, "sh", "-c", script); err != nil {
