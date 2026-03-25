@@ -94,3 +94,40 @@ func TestRmNoArgs(t *testing.T) {
 		t.Error("rm with no args should fail")
 	}
 }
+
+func TestParseCreateArgs(t *testing.T) {
+	tests := []struct {
+		name      string
+		args      []string
+		template  string
+		workspace string // empty means default to cwd
+		agentArgs []string
+	}{
+		{"template only", []string{"jvm"}, "jvm", "", nil},
+		{"template and workspace", []string{"jvm", "/path"}, "jvm", "/path", nil},
+		{"template with agent args", []string{"jvm", "--dangerously-skip-permissions"}, "jvm", "", []string{"--dangerously-skip-permissions"}},
+		{"all three", []string{"jvm", "/path", "--skip"}, "jvm", "/path", []string{"--skip"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpl, ws, agentArgs := ParseCreateArgs(tt.args)
+			if tmpl != tt.template {
+				t.Errorf("template: got %q, want %q", tmpl, tt.template)
+			}
+			if tt.workspace != "" && ws != tt.workspace {
+				t.Errorf("workspace: got %q, want %q", ws, tt.workspace)
+			}
+			if len(agentArgs) != len(tt.agentArgs) {
+				t.Errorf("agentArgs: got %v, want %v", agentArgs, tt.agentArgs)
+			}
+		})
+	}
+}
+
+func TestRunCreateValidatesTemplate(t *testing.T) {
+	md := &mockDocker{}
+	err := RunCreate(md, t.TempDir(), []string{"nonexistent"})
+	if err == nil {
+		t.Error("should fail with invalid template")
+	}
+}
