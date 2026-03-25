@@ -4,6 +4,7 @@ Run [Claude Code](https://docs.anthropic.com/en/docs/claude-code) inside sandbox
 
 ## Prerequisites
 
+- [Go](https://go.dev/dl/) 1.21+
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) with sandbox support enabled
 
 ## Quick start
