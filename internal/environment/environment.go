@@ -17,7 +17,7 @@ func Setup(d docker.Docker, sandboxName string) error {
 
 	// Export GITHUB_USERNAME if set
 	if username := os.Getenv("GITHUB_USERNAME"); username != "" {
-		script := fmt.Sprintf("echo 'export GITHUB_USERNAME=%s' >> /etc/sandbox-persistent.sh", username)
+		script := fmt.Sprintf("printf 'export GITHUB_USERNAME=%%s\\n' %q >> /etc/sandbox-persistent.sh", username)
 		if _, err := d.SandboxExec(sandboxName, "sh", "-c", script); err != nil {
 			return fmt.Errorf("setting GITHUB_USERNAME: %w", err)
 		}
