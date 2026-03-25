@@ -95,7 +95,7 @@ Core business logic for sandbox lifecycle. Takes a `Docker` interface. Operation
 - Build template image
 - Create sandbox with workspace mount and Claude config symlinks
 - Copy workspace to container-local path (avoids VirtioFS latency)
-- Create isolated git branch (`sandbox/<name>`)
+- Create isolated git branch (`sandbox-YYYYMMDD-HHMMSS`)
 - Apply network policy from `allowed-hosts.txt` (deny-by-default + whitelist)
 - Wrap claude binary to cd to workspace on launch
 
@@ -120,12 +120,13 @@ Thin cobra command constructors. Each command: parses flags, validates args, cal
 3. Determine workspace (positional arg or `$(pwd)`) and sandbox name (`<workspace>-<template>-sandbox-<YYYYMMDD-HHMMSS>`)
 4. Create sandbox with workspace mount and Claude config symlinks
 5. Copy workspace files to container-local path
-6. Create isolated git branch (`sandbox/<name>`)
-7. If `allowed-hosts.txt` exists, apply network policy
-8. Set up environment (proxy, JVM config)
-9. Refresh credentials (Keychain)
-10. Wrap claude binary to cd to workspace on launch
-11. Run sandbox with `--dangerously-skip-permissions`
+6. Create isolated git branch (`sandbox-YYYYMMDD-HHMMSS`)
+7. Set up environment (proxy, JVM config)
+8. If `allowed-hosts.txt` exists, apply network policy
+9. Verify network policy (curl blocked host, curl allowed host)
+10. Refresh credentials (Keychain)
+11. Wrap claude binary to cd to workspace on launch
+12. Run sandbox with `--dangerously-skip-permissions`
 
 ### `claudebox resume`
 
@@ -133,7 +134,7 @@ Thin cobra command constructors. Each command: parses flags, validates args, cal
 2. If none: error. If one: prompt to confirm. If multiple: interactive picker.
 3. Refresh credentials and environment
 4. Wrap claude binary to cd to workspace on launch
-5. Resume sandbox, passing any extra args
+5. Resume sandbox with `--dangerously-skip-permissions`, passing any extra args
 
 ### `claudebox ls`
 
