@@ -119,7 +119,7 @@ Thin cobra command constructors. Each command: parses flags, validates args, cal
 2. Build Docker image: `docker build -t <template>-sandbox templates/<template>/`
 3. Determine workspace (positional arg or `$(pwd)`) and sandbox name (`<workspace>-<template>-sandbox-<YYYYMMDD-HHMMSS>`)
 4. Create sandbox with workspace mount and Claude config symlinks
-5. Copy workspace files to container-local path
+5. Copy workspace files to container-local path, clean untracked/ignored files (`git clean -fdx -q`)
 6. Create isolated git branch (`sandbox-YYYYMMDD-HHMMSS`)
 7. Set up environment (proxy, JVM config)
 8. If `allowed-hosts.txt` exists, apply network policy
@@ -132,7 +132,7 @@ Thin cobra command constructors. Each command: parses flags, validates args, cal
 
 1. List sandboxes matching current workspace
 2. If none: error. If one: prompt to confirm. If multiple: interactive picker.
-3. Refresh credentials and environment
+3. Refresh environment and credentials (environment first, then credentials)
 4. Wrap claude binary to cd to workspace on launch
 5. Resume sandbox with `--dangerously-skip-permissions`, passing any extra args
 
