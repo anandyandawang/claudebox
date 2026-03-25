@@ -14,10 +14,10 @@ Clean rewrite in idiomatic Go. The current Bash serves as the behavioral spec. N
 
 The interface stays identical:
 
-- `claudebox <template>` — create and run a sandbox from a template
+- `claudebox <template> [workspace] [-- agent_args...]` — create and run a sandbox from a template. Workspace defaults to `$(pwd)`, can be overridden with a positional arg.
 - `claudebox resume` — resume an existing sandbox
-- `claudebox ls` — list sandboxes for the current workspace
-- `claudebox rm <name|--all>` — remove sandboxes
+- `claudebox ls` — list all sandboxes
+- `claudebox rm <name|all>` — remove a sandbox by name, or `all` to remove all sandboxes for the current workspace
 
 ## Dependencies
 
@@ -82,6 +82,7 @@ type Docker interface {
     SandboxExec(name string, cmd string) (string, error)
     SandboxLs(filter string) ([]SandboxInfo, error)
     SandboxRm(name string) error
+    SandboxNetworkProxy(name string, allowedHosts []string) error
 }
 ```
 
@@ -115,30 +116,32 @@ Thin cobra command constructors. Each command: parses flags, validates args, cal
 ### `claudebox <template>` (create)
 
 1. Validate template exists (has `Dockerfile` in `templates/<name>/`)
-2. Build Docker image: `docker build -t claudebox-<template> templates/<template>/`
-3. Determine workspace (current git repo root) and sandbox name (`claudebox-<workspace>-<template>-<timestamp>`)
+2. Build Docker image: `docker build -t <template>-sandbox templates/<template>/`
+3. Determine workspace (positional arg or `$(pwd)`) and sandbox name (`<workspace>-<template>-sandbox-<YYYYMMDD-HHMMSS>`)
 4. Create sandbox with workspace mount and Claude config symlinks
 5. Copy workspace files to container-local path
 6. Create isolated git branch (`sandbox/<name>`)
 7. If `allowed-hosts.txt` exists, apply network policy
-8. Wrap claude binary to cd to workspace on launch
-9. Refresh credentials and set up environment
-10. Run sandbox with `--dangerously-skip-permissions`
+8. Set up environment (proxy, JVM config)
+9. Refresh credentials (Keychain)
+10. Wrap claude binary to cd to workspace on launch
+11. Run sandbox with `--dangerously-skip-permissions`
 
 ### `claudebox resume`
 
 1. List sandboxes matching current workspace
 2. If none: error. If one: prompt to confirm. If multiple: interactive picker.
 3. Refresh credentials and environment
-4. Resume sandbox, passing any extra args
+4. Wrap claude binary to cd to workspace on launch
+5. Resume sandbox, passing any extra args
 
 ### `claudebox ls`
 
-1. Run `docker sandbox ls`, filter to current workspace prefix
+1. Run `docker sandbox ls` (no filtering — shows all sandboxes)
 
-### `claudebox rm <name|--all>`
+### `claudebox rm <name|all>`
 
-1. If `--all`: find and remove all sandboxes for current workspace
+1. If `all`: find and remove all sandboxes for current workspace
 2. If name: validate it exists, remove it
 3. Report count removed
 
