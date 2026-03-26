@@ -333,3 +333,59 @@ func TestResumeOnlyShowsCurrentWorkspace(t *testing.T) {
 	// sandbox matching the current workspace prefix. If both matched, it would
 	// have shown the picker (which needs "1\n" or "2\n", not "y\n") and errored.
 }
+
+func TestResumeIsolatesTruncatedWorkspaces(t *testing.T) {
+	// Two workspaces that truncate to the same 12 chars ("lambda-jpm-c").
+	// Resume from one must not see the other's sandboxes.
+	tmpDir := t.TempDir()
+	wsDirA := filepath.Join(tmpDir, "lambda-jpm-clearings")
+	wsDirB := filepath.Join(tmpDir, "lambda-jpm-clients")
+	if err := os.Mkdir(wsDirA, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(wsDirB, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(origDir) })
+	if err := os.Chdir(wsDirA); err != nil {
+		t.Fatal(err)
+	}
+	resolvedDirA, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolvedDirB := filepath.Join(filepath.Dir(resolvedDirA), "lambda-jpm-clients")
+
+	// Generate sandbox names for both workspaces.
+	sandboxA := sandbox.GenerateSandboxName(resolvedDirA, "jvm")
+	sandboxB := sandbox.GenerateSandboxName(resolvedDirB, "jvm")
+
+	md := &mockDocker{lsOutput: []docker.SandboxInfo{
+		{Name: sandboxA},
+		{Name: sandboxB},
+	}}
+
+	// Provide "y\n" — expects the single-match Y/n prompt.
+	stdinFile, err := os.CreateTemp(t.TempDir(), "stdin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stdinFile.WriteString("y\n"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stdinFile.Seek(0, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	// Resume from workspace A — should only see sandboxA (1 match → Y/n prompt).
+	// If both matched, we'd get the picker expecting "1\n"/"2\n" and this would error.
+	err = runResume(md, t.TempDir(), nil, stdinFile)
+	if err != nil {
+		t.Fatalf("resume failed: %v", err)
+	}
+}
