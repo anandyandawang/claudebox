@@ -134,6 +134,28 @@ func TestRandomCatName(t *testing.T) {
 	}
 }
 
+func TestGenerateSandboxNameMaxLength(t *testing.T) {
+	// Worst case: 12-char workspace, 5-char cat name
+	// Run many times to exercise different cat names
+	for i := 0; i < 100; i++ {
+		name := GenerateSandboxName("/path/to/abcdefghijklmnopqrstuvwxyz", "long-template-name")
+		if len(name) > 29 {
+			t.Errorf("iteration %d: name %q length = %d, want <= 29", i, name, len(name))
+		}
+	}
+}
+
+func TestGenerateSandboxNameSocketPathFits(t *testing.T) {
+	// Simulate a long home directory: /Users/christopherjohnson (25 chars)
+	homeDir := "/Users/christopherjohnson"
+	name := GenerateSandboxName("/path/to/some-long-workspace-name", "jvm")
+
+	socketPath := homeDir + "/.docker/sandboxes/vm/" + name + "/docker-public.sock"
+	if len(socketPath) > 103 {
+		t.Errorf("socket path length = %d, want <= 103: %s", len(socketPath), socketPath)
+	}
+}
+
 func TestWorkspacePrefix(t *testing.T) {
 	prefix := WorkspacePrefix("/path/to/lambda-jpm-clearings")
 
