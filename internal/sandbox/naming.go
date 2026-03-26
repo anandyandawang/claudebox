@@ -21,6 +21,12 @@ const (
 
 var nonAlphanumeric = regexp.MustCompile(`[^a-zA-Z0-9_.\-]+`)
 
+// hexHashPrefix returns the first n hex chars of the SHA-256 of input.
+func hexHashPrefix(input string, n int) string {
+	h := sha256.Sum256([]byte(input))
+	return hex.EncodeToString(h[:])[:n]
+}
+
 // truncateClean truncates s to max chars and strips trailing hyphens and dots.
 func truncateClean(s string, max int) string {
 	if len(s) > max {
@@ -31,15 +37,12 @@ func truncateClean(s string, max int) string {
 
 // workspaceHash returns the first 2 hex chars of SHA-256 of the full workspace path.
 func workspaceHash(fullWorkspace string) string {
-	h := sha256.Sum256([]byte(fullWorkspace))
-	return hex.EncodeToString(h[:])[:wsHashLen]
+	return hexHashPrefix(fullWorkspace, wsHashLen)
 }
 
 // instanceHash returns the first 2 hex chars of SHA-256 of template + cat + microsecond timestamp.
 func instanceHash(fullTemplate, cat string) string {
-	us := fmt.Sprintf("%d", time.Now().UnixMicro())
-	h := sha256.Sum256([]byte(fullTemplate + cat + us))
-	return hex.EncodeToString(h[:])[:instanceHashLen]
+	return hexHashPrefix(fullTemplate+cat+fmt.Sprintf("%d", time.Now().UnixMicro()), instanceHashLen)
 }
 
 var catNames = []string{
@@ -71,8 +74,7 @@ func GenerateSessionID() string {
 func sanitizedWorkspace(workspacePath string) string {
 	ws := truncateClean(SanitizeWorkspaceName(filepath.Base(workspacePath)), maxWorkspaceLen)
 	if ws == "" {
-		h := sha256.Sum256([]byte(workspacePath))
-		ws = hex.EncodeToString(h[:])[:maxWorkspaceLen]
+		ws = hexHashPrefix(workspacePath, maxWorkspaceLen)
 	}
 	return ws
 }
@@ -87,10 +89,9 @@ func WorkspacePrefix(workspacePath string) string {
 
 // GenerateSandboxName returns: <wshash(2)>-<workspace(12)>.<MMDD>-<cat(5)>-<hash(2)>
 func GenerateSandboxName(workspacePath, template string) string {
-	wsHash := workspaceHash(workspacePath)
-	wsTrunc := sanitizedWorkspace(workspacePath)
+	prefix := WorkspacePrefix(workspacePath)
 	cat := randomCatName()
 	iHash := instanceHash(template, cat)
 	mmdd := time.Now().Format("0102")
-	return fmt.Sprintf("%s-%s.%s-%s-%s", wsHash, wsTrunc, mmdd, cat, iHash)
+	return fmt.Sprintf("%s%s-%s-%s", prefix, mmdd, cat, iHash)
 }
