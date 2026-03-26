@@ -9,7 +9,6 @@ import (
 	"claudebox/internal/sandbox"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -36,7 +35,7 @@ func runResume(d docker.Docker, templatesDir string, agentArgs []string, stdin *
 	if err != nil {
 		return err
 	}
-	prefix := sandbox.SanitizeWorkspaceName(filepath.Base(wd)) + "-"
+	prefix := sandbox.WorkspacePrefix(wd)
 	names, err := mgr.List(prefix)
 	if err != nil {
 		return err

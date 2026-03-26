@@ -4,7 +4,11 @@ package commands
 import (
 	"bytes"
 	"claudebox/internal/docker"
+	"claudebox/internal/sandbox"
 	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
 	"testing"
 )
 
@@ -129,5 +133,362 @@ func TestRunCreateValidatesTemplate(t *testing.T) {
 	err := RunCreate(md, t.TempDir(), []string{"nonexistent"})
 	if err == nil {
 		t.Error("should fail with invalid template")
+	}
+}
+
+func TestRmAllRemovesMatchingSandboxes(t *testing.T) {
+	// Create a temp directory with a known workspace name and chdir there.
+	tmpDir := t.TempDir()
+	wsDir := filepath.Join(tmpDir, "myproject")
+	if err := os.Mkdir(wsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(origDir) })
+	if err := os.Chdir(wsDir); err != nil {
+		t.Fatal(err)
+	}
+	// Use resolved cwd for generating names (macOS resolves symlinks in Getwd)
+	resolvedDir, err2 := os.Getwd()
+	if err2 != nil {
+		t.Fatal(err2)
+	}
+
+	// Generate sandbox names that match this workspace.
+	nameA := sandbox.GenerateSandboxName(resolvedDir, "jvm")
+	nameB := sandbox.GenerateSandboxName(resolvedDir, "kotlin-spring")
+
+	md := &mockDocker{lsOutput: []docker.SandboxInfo{
+		{Name: nameA},
+		{Name: nameB},
+	}}
+
+	cmd := NewRmCmd(md)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetArgs([]string{"all"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("rm all failed: %v", err)
+	}
+
+	// Both sandboxes should have been removed.
+	sort.Strings(md.rmCalls)
+	expected := []string{nameA, nameB}
+	sort.Strings(expected)
+	if len(md.rmCalls) != len(expected) {
+		t.Fatalf("rm calls = %v, want %v", md.rmCalls, expected)
+	}
+	for i := range expected {
+		if md.rmCalls[i] != expected[i] {
+			t.Errorf("rm call[%d] = %q, want %q", i, md.rmCalls[i], expected[i])
+		}
+	}
+}
+
+func TestRmAllDoesNotRemoveDifferentWorkspace(t *testing.T) {
+	// Two workspaces that truncate to the same 12 chars.
+	wsNameA := "lambda-jpm-clearings"
+	wsNameB := "lambda-jpm-clients"
+
+	tmpDir := t.TempDir()
+	wsDirA := filepath.Join(tmpDir, wsNameA)
+	if err := os.Mkdir(wsDirA, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(origDir) })
+	if err := os.Chdir(wsDirA); err != nil {
+		t.Fatal(err)
+	}
+	// Use resolved cwd (macOS resolves symlinks in Getwd)
+	resolvedDirA, err2 := os.Getwd()
+	if err2 != nil {
+		t.Fatal(err2)
+	}
+	resolvedDirB := filepath.Join(filepath.Dir(resolvedDirA), wsNameB)
+
+	prefixA := sandbox.WorkspacePrefix(resolvedDirA)
+	prefixB := sandbox.WorkspacePrefix(resolvedDirB)
+
+	// Sanity: the prefixes must differ (the hash disambiguates).
+	if prefixA == prefixB {
+		t.Fatalf("prefixes should differ: A=%q B=%q", prefixA, prefixB)
+	}
+
+	// Generate sandbox names for each workspace.
+	sandboxA1 := sandbox.GenerateSandboxName(resolvedDirA, "jvm")
+	sandboxA2 := sandbox.GenerateSandboxName(resolvedDirA, "kotlin-spring")
+	sandboxB1 := sandbox.GenerateSandboxName(resolvedDirB, "jvm")
+	sandboxB2 := sandbox.GenerateSandboxName(resolvedDirB, "jvm")
+
+	md := &mockDocker{lsOutput: []docker.SandboxInfo{
+		{Name: sandboxA1},
+		{Name: sandboxA2},
+		{Name: sandboxB1},
+		{Name: sandboxB2},
+	}}
+
+	cmd := NewRmCmd(md)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetArgs([]string{"all"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("rm all failed: %v", err)
+	}
+
+	// Only workspace A sandboxes should have been removed.
+	for _, call := range md.rmCalls {
+		if call == sandboxB1 || call == sandboxB2 {
+			t.Errorf("rm removed sandbox from different workspace: %q", call)
+		}
+	}
+
+	// Exactly the workspace-A sandboxes should be removed.
+	removedSet := make(map[string]bool)
+	for _, c := range md.rmCalls {
+		removedSet[c] = true
+	}
+	if !removedSet[sandboxA1] {
+		t.Errorf("expected %q to be removed", sandboxA1)
+	}
+	if !removedSet[sandboxA2] {
+		t.Errorf("expected %q to be removed", sandboxA2)
+	}
+	if len(md.rmCalls) != 2 {
+		t.Errorf("expected 2 rm calls, got %d: %v", len(md.rmCalls), md.rmCalls)
+	}
+}
+
+func TestResumeOnlyShowsCurrentWorkspace(t *testing.T) {
+	// Two workspaces with the same basename but different parents.
+	tmpDir := t.TempDir()
+	wsDirA := filepath.Join(tmpDir, "parent-a", "my-service")
+	wsDirB := filepath.Join(tmpDir, "parent-b", "my-service")
+	if err := os.MkdirAll(wsDirA, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(wsDirB, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(origDir) })
+	if err := os.Chdir(wsDirA); err != nil {
+		t.Fatal(err)
+	}
+	resolvedDirA, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolvedDirB := filepath.Join(filepath.Dir(resolvedDirA), "..", "parent-b", "my-service")
+
+	// Generate sandbox names for both workspaces.
+	sandboxA := sandbox.GenerateSandboxName(resolvedDirA, "jvm")
+	sandboxB := sandbox.GenerateSandboxName(resolvedDirB, "jvm")
+
+	md := &mockDocker{lsOutput: []docker.SandboxInfo{
+		{Name: sandboxA},
+		{Name: sandboxB},
+	}}
+
+	// Create a temp file with "y\n" for stdin (auto-confirm the single match).
+	stdinFile, err := os.CreateTemp(t.TempDir(), "stdin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stdinFile.WriteString("y\n"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stdinFile.Seek(0, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	// runResume filters by WorkspacePrefix(cwd) — should only see sandboxA.
+	err = runResume(md, t.TempDir(), nil, stdinFile)
+	if err != nil {
+		t.Fatalf("resume failed: %v", err)
+	}
+
+	// The mock's SandboxLs filters by prefix, so only sandboxA should match.
+	// runResume then calls SandboxRun on the matched sandbox.
+	// Verify by checking that sandboxB was never interacted with.
+	// Since there's exactly 1 match, resume auto-prompts and runs it.
+	// We can't directly inspect which sandbox was run (SandboxRun is a no-op mock),
+	// but we can verify the prefix filtering worked by checking the ls filter.
+
+	// The real assertion: resume didn't error, which means it found exactly 1
+	// sandbox matching the current workspace prefix. If both matched, it would
+	// have shown the picker (which needs "1\n" or "2\n", not "y\n") and errored.
+}
+
+func TestResumeIsolatesTruncatedWorkspaces(t *testing.T) {
+	// Two workspaces that truncate to the same 12 chars ("lambda-jpm-c").
+	// Resume from one must not see the other's sandboxes.
+	tmpDir := t.TempDir()
+	wsDirA := filepath.Join(tmpDir, "lambda-jpm-clearings")
+	wsDirB := filepath.Join(tmpDir, "lambda-jpm-clients")
+	if err := os.Mkdir(wsDirA, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(wsDirB, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(origDir) })
+	if err := os.Chdir(wsDirA); err != nil {
+		t.Fatal(err)
+	}
+	resolvedDirA, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolvedDirB := filepath.Join(filepath.Dir(resolvedDirA), "lambda-jpm-clients")
+
+	// Generate sandbox names for both workspaces.
+	sandboxA := sandbox.GenerateSandboxName(resolvedDirA, "jvm")
+	sandboxB := sandbox.GenerateSandboxName(resolvedDirB, "jvm")
+
+	md := &mockDocker{lsOutput: []docker.SandboxInfo{
+		{Name: sandboxA},
+		{Name: sandboxB},
+	}}
+
+	// Provide "y\n" — expects the single-match Y/n prompt.
+	stdinFile, err := os.CreateTemp(t.TempDir(), "stdin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stdinFile.WriteString("y\n"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stdinFile.Seek(0, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	// Resume from workspace A — should only see sandboxA (1 match → Y/n prompt).
+	// If both matched, we'd get the picker expecting "1\n"/"2\n" and this would error.
+	err = runResume(md, t.TempDir(), nil, stdinFile)
+	if err != nil {
+		t.Fatalf("resume failed: %v", err)
+	}
+}
+
+func TestRmAllWithDegenerateWorkspace(t *testing.T) {
+	// Workspace with a degenerate name that falls back to hash.
+	tmpDir := t.TempDir()
+	wsDir := filepath.Join(tmpDir, "...")
+	if err := os.Mkdir(wsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(origDir) })
+	if err := os.Chdir(wsDir); err != nil {
+		t.Fatal(err)
+	}
+	resolvedDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nameA := sandbox.GenerateSandboxName(resolvedDir, "jvm")
+	nameB := sandbox.GenerateSandboxName(resolvedDir, "jvm")
+
+	// Also add a sandbox from a normal workspace to verify it's not touched.
+	normalDir := filepath.Join(filepath.Dir(resolvedDir), "normal-project")
+	normalName := sandbox.GenerateSandboxName(normalDir, "jvm")
+
+	md := &mockDocker{lsOutput: []docker.SandboxInfo{
+		{Name: nameA},
+		{Name: nameB},
+		{Name: normalName},
+	}}
+
+	cmd := NewRmCmd(md)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetArgs([]string{"all"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("rm all failed: %v", err)
+	}
+
+	// Only the degenerate workspace's sandboxes should be removed.
+	for _, call := range md.rmCalls {
+		if call == normalName {
+			t.Errorf("rm removed sandbox from different workspace: %q", call)
+		}
+	}
+	if len(md.rmCalls) != 2 {
+		t.Errorf("expected 2 rm calls, got %d: %v", len(md.rmCalls), md.rmCalls)
+	}
+}
+
+func TestResumeWithDegenerateWorkspace(t *testing.T) {
+	// Workspace with a degenerate name that falls back to hash.
+	tmpDir := t.TempDir()
+	wsDir := filepath.Join(tmpDir, "---")
+	if err := os.Mkdir(wsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(origDir) })
+	if err := os.Chdir(wsDir); err != nil {
+		t.Fatal(err)
+	}
+	resolvedDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// One sandbox from this degenerate workspace, one from a normal workspace.
+	degenerateName := sandbox.GenerateSandboxName(resolvedDir, "jvm")
+	normalDir := filepath.Join(filepath.Dir(resolvedDir), "normal-project")
+	normalName := sandbox.GenerateSandboxName(normalDir, "jvm")
+
+	md := &mockDocker{lsOutput: []docker.SandboxInfo{
+		{Name: degenerateName},
+		{Name: normalName},
+	}}
+
+	stdinFile, err := os.CreateTemp(t.TempDir(), "stdin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stdinFile.WriteString("y\n"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stdinFile.Seek(0, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	// Should find exactly 1 match (the degenerate one), triggering Y/n prompt.
+	err = runResume(md, t.TempDir(), nil, stdinFile)
+	if err != nil {
+		t.Fatalf("resume failed: %v", err)
 	}
 }
