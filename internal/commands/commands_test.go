@@ -389,3 +389,106 @@ func TestResumeIsolatesTruncatedWorkspaces(t *testing.T) {
 		t.Fatalf("resume failed: %v", err)
 	}
 }
+
+func TestRmAllWithDegenerateWorkspace(t *testing.T) {
+	// Workspace with a degenerate name that falls back to hash.
+	tmpDir := t.TempDir()
+	wsDir := filepath.Join(tmpDir, "...")
+	if err := os.Mkdir(wsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(origDir) })
+	if err := os.Chdir(wsDir); err != nil {
+		t.Fatal(err)
+	}
+	resolvedDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nameA := sandbox.GenerateSandboxName(resolvedDir, "jvm")
+	nameB := sandbox.GenerateSandboxName(resolvedDir, "jvm")
+
+	// Also add a sandbox from a normal workspace to verify it's not touched.
+	normalDir := filepath.Join(filepath.Dir(resolvedDir), "normal-project")
+	normalName := sandbox.GenerateSandboxName(normalDir, "jvm")
+
+	md := &mockDocker{lsOutput: []docker.SandboxInfo{
+		{Name: nameA},
+		{Name: nameB},
+		{Name: normalName},
+	}}
+
+	cmd := NewRmCmd(md)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetArgs([]string{"all"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("rm all failed: %v", err)
+	}
+
+	// Only the degenerate workspace's sandboxes should be removed.
+	for _, call := range md.rmCalls {
+		if call == normalName {
+			t.Errorf("rm removed sandbox from different workspace: %q", call)
+		}
+	}
+	if len(md.rmCalls) != 2 {
+		t.Errorf("expected 2 rm calls, got %d: %v", len(md.rmCalls), md.rmCalls)
+	}
+}
+
+func TestResumeWithDegenerateWorkspace(t *testing.T) {
+	// Workspace with a degenerate name that falls back to hash.
+	tmpDir := t.TempDir()
+	wsDir := filepath.Join(tmpDir, "---")
+	if err := os.Mkdir(wsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(origDir) })
+	if err := os.Chdir(wsDir); err != nil {
+		t.Fatal(err)
+	}
+	resolvedDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// One sandbox from this degenerate workspace, one from a normal workspace.
+	degenerateName := sandbox.GenerateSandboxName(resolvedDir, "jvm")
+	normalDir := filepath.Join(filepath.Dir(resolvedDir), "normal-project")
+	normalName := sandbox.GenerateSandboxName(normalDir, "jvm")
+
+	md := &mockDocker{lsOutput: []docker.SandboxInfo{
+		{Name: degenerateName},
+		{Name: normalName},
+	}}
+
+	stdinFile, err := os.CreateTemp(t.TempDir(), "stdin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stdinFile.WriteString("y\n"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stdinFile.Seek(0, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	// Should find exactly 1 match (the degenerate one), triggering Y/n prompt.
+	err = runResume(md, t.TempDir(), nil, stdinFile)
+	if err != nil {
+		t.Fatalf("resume failed: %v", err)
+	}
+}

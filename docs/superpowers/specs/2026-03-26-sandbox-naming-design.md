@@ -36,14 +36,14 @@ Socket path budget: `103 - 22 (Docker prefix after home) - 29 (sandbox name) - 2
 ### Example
 
 ```
-Full workspace:       lambda-jpm-clearings
+Full workspace path:  /path/to/lambda-jpm-clearings
 Full template:        jvm
 Date:                 March 25
 Cat name:             chonk
 Unix microseconds:    1711382400000000
 
-WS hash input:        "lambda-jpm-clearings"
-WS hash:              sha256("lambda-jpm-clearings")[:2] → b4
+WS hash input:        "/path/to/lambda-jpm-clearings"
+WS hash:              sha256("/path/to/lambda-jpm-clearings")[:2] → b4
 
 Truncated workspace:  lambda-jpm-c
 

@@ -23,7 +23,7 @@ func truncateClean(s string, max int) string {
 	return strings.TrimRight(s, "-.")
 }
 
-// workspaceHash returns the first 2 hex chars of SHA-256 of the full workspace name.
+// workspaceHash returns the first 2 hex chars of SHA-256 of the full workspace path.
 func workspaceHash(fullWorkspace string) string {
 	h := sha256.Sum256([]byte(fullWorkspace))
 	return hex.EncodeToString(h[:])[:2]
