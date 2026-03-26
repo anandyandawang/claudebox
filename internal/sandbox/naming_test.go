@@ -176,3 +176,72 @@ func TestWorkspacePrefix(t *testing.T) {
 		t.Errorf("different workspaces got same prefix: %q", prefix)
 	}
 }
+
+func TestWorkspacePrefixStable(t *testing.T) {
+	// Same workspace must always produce the same prefix.
+	ws := "/home/user/projects/my-cool-app"
+	first := WorkspacePrefix(ws)
+	for i := 0; i < 50; i++ {
+		got := WorkspacePrefix(ws)
+		if got != first {
+			t.Fatalf("call %d: WorkspacePrefix changed from %q to %q", i, first, got)
+		}
+	}
+}
+
+func TestWorkspacePrefixMatchesDifferentTemplates(t *testing.T) {
+	// The prefix is workspace-only; different templates must still match.
+	ws := "/repos/my-service"
+	prefix := WorkspacePrefix(ws)
+
+	nameJVM := GenerateSandboxName(ws, "jvm")
+	nameKotlin := GenerateSandboxName(ws, "kotlin-spring")
+
+	if !strings.HasPrefix(nameJVM, prefix) {
+		t.Errorf("jvm name %q does not start with prefix %q", nameJVM, prefix)
+	}
+	if !strings.HasPrefix(nameKotlin, prefix) {
+		t.Errorf("kotlin-spring name %q does not start with prefix %q", nameKotlin, prefix)
+	}
+}
+
+func TestWorkspacePrefixIsolatesTruncationCollisions(t *testing.T) {
+	// Two workspaces that truncate to the same 12 chars ("lambda-jpm-c")
+	// must produce different prefixes thanks to the workspace hash.
+	wsA := "/path/to/lambda-jpm-clearings"
+	wsB := "/path/to/lambda-jpm-clients"
+
+	prefixA := WorkspacePrefix(wsA)
+	prefixB := WorkspacePrefix(wsB)
+
+	if prefixA == prefixB {
+		t.Fatalf("collision: both workspaces produced prefix %q", prefixA)
+	}
+
+	// Generate several sandbox names for each workspace.
+	var namesA, namesB []string
+	for i := 0; i < 10; i++ {
+		namesA = append(namesA, GenerateSandboxName(wsA, "jvm"))
+		namesB = append(namesB, GenerateSandboxName(wsB, "jvm"))
+	}
+
+	// Names from workspace A must match prefix A but NOT prefix B.
+	for _, n := range namesA {
+		if !strings.HasPrefix(n, prefixA) {
+			t.Errorf("wsA name %q does not match prefixA %q", n, prefixA)
+		}
+		if strings.HasPrefix(n, prefixB) {
+			t.Errorf("wsA name %q incorrectly matches prefixB %q", n, prefixB)
+		}
+	}
+
+	// Names from workspace B must match prefix B but NOT prefix A.
+	for _, n := range namesB {
+		if !strings.HasPrefix(n, prefixB) {
+			t.Errorf("wsB name %q does not match prefixB %q", n, prefixB)
+		}
+		if strings.HasPrefix(n, prefixA) {
+			t.Errorf("wsB name %q incorrectly matches prefixA %q", n, prefixA)
+		}
+	}
+}

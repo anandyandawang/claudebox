@@ -4,7 +4,11 @@ package commands
 import (
 	"bytes"
 	"claudebox/internal/docker"
+	"claudebox/internal/sandbox"
 	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
 	"testing"
 )
 
@@ -129,5 +133,127 @@ func TestRunCreateValidatesTemplate(t *testing.T) {
 	err := RunCreate(md, t.TempDir(), []string{"nonexistent"})
 	if err == nil {
 		t.Error("should fail with invalid template")
+	}
+}
+
+func TestRmAllRemovesMatchingSandboxes(t *testing.T) {
+	// Create a temp directory with a known workspace name and chdir there.
+	tmpDir := t.TempDir()
+	wsDir := filepath.Join(tmpDir, "myproject")
+	if err := os.Mkdir(wsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(origDir) })
+	if err := os.Chdir(wsDir); err != nil {
+		t.Fatal(err)
+	}
+
+	// Generate sandbox names that match this workspace.
+	nameA := sandbox.GenerateSandboxName(wsDir, "jvm")
+	nameB := sandbox.GenerateSandboxName(wsDir, "kotlin-spring")
+
+	md := &mockDocker{lsOutput: []docker.SandboxInfo{
+		{Name: nameA},
+		{Name: nameB},
+	}}
+
+	cmd := NewRmCmd(md)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetArgs([]string{"all"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("rm all failed: %v", err)
+	}
+
+	// Both sandboxes should have been removed.
+	sort.Strings(md.rmCalls)
+	expected := []string{nameA, nameB}
+	sort.Strings(expected)
+	if len(md.rmCalls) != len(expected) {
+		t.Fatalf("rm calls = %v, want %v", md.rmCalls, expected)
+	}
+	for i := range expected {
+		if md.rmCalls[i] != expected[i] {
+			t.Errorf("rm call[%d] = %q, want %q", i, md.rmCalls[i], expected[i])
+		}
+	}
+}
+
+func TestRmAllDoesNotRemoveDifferentWorkspace(t *testing.T) {
+	// Two workspaces that truncate to the same 12 chars.
+	wsNameA := "lambda-jpm-clearings"
+	wsNameB := "lambda-jpm-clients"
+
+	tmpDir := t.TempDir()
+	wsDirA := filepath.Join(tmpDir, wsNameA)
+	if err := os.Mkdir(wsDirA, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(origDir) })
+	if err := os.Chdir(wsDirA); err != nil {
+		t.Fatal(err)
+	}
+
+	prefixA := sandbox.WorkspacePrefix(wsDirA)
+	prefixB := sandbox.WorkspacePrefix(filepath.Join(tmpDir, wsNameB))
+
+	// Sanity: the prefixes must differ (the hash disambiguates).
+	if prefixA == prefixB {
+		t.Fatalf("prefixes should differ: A=%q B=%q", prefixA, prefixB)
+	}
+
+	// Generate sandbox names for each workspace.
+	sandboxA1 := sandbox.GenerateSandboxName(wsDirA, "jvm")
+	sandboxA2 := sandbox.GenerateSandboxName(wsDirA, "kotlin-spring")
+	sandboxB1 := sandbox.GenerateSandboxName(filepath.Join(tmpDir, wsNameB), "jvm")
+	sandboxB2 := sandbox.GenerateSandboxName(filepath.Join(tmpDir, wsNameB), "jvm")
+
+	md := &mockDocker{lsOutput: []docker.SandboxInfo{
+		{Name: sandboxA1},
+		{Name: sandboxA2},
+		{Name: sandboxB1},
+		{Name: sandboxB2},
+	}}
+
+	cmd := NewRmCmd(md)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetArgs([]string{"all"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("rm all failed: %v", err)
+	}
+
+	// Only workspace A sandboxes should have been removed.
+	for _, call := range md.rmCalls {
+		if call == sandboxB1 || call == sandboxB2 {
+			t.Errorf("rm removed sandbox from different workspace: %q", call)
+		}
+	}
+
+	// Exactly the workspace-A sandboxes should be removed.
+	removedSet := make(map[string]bool)
+	for _, c := range md.rmCalls {
+		removedSet[c] = true
+	}
+	if !removedSet[sandboxA1] {
+		t.Errorf("expected %q to be removed", sandboxA1)
+	}
+	if !removedSet[sandboxA2] {
+		t.Errorf("expected %q to be removed", sandboxA2)
+	}
+	if len(md.rmCalls) != 2 {
+		t.Errorf("expected 2 rm calls, got %d: %v", len(md.rmCalls), md.rmCalls)
 	}
 }
