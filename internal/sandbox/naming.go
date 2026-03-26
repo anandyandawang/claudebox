@@ -37,11 +37,11 @@ func instanceHash(fullTemplate, cat string) string {
 }
 
 var catNames = []string{
-	"nyan", "maru", "chonk", "floof", "blep",
-	"mlem", "loaf", "beans", "bongo", "mochi",
-	"luna", "simba", "felix", "salem", "tom",
-	"tux", "void", "smol", "purr", "meow",
-	"socks", "fluff", "grump", "chomp", "boop",
+	"chonk", "floof", "beans", "bongo", "mochi",
+	"simba", "felix", "salem", "socks", "fluff",
+	"grump", "chomp", "tabby", "catto", "meows",
+	"purrs", "bonks", "bloop", "smols", "nyans",
+	"marus", "bleps", "mlems", "loafs", "boops",
 }
 
 // randomCatName picks a random cat name from the list.
@@ -66,7 +66,7 @@ func sanitizedWorkspace(workspacePath string) string {
 	ws := truncateClean(SanitizeWorkspaceName(filepath.Base(workspacePath)), 12)
 	if ws == "" {
 		h := sha256.Sum256([]byte(workspacePath))
-		ws = hex.EncodeToString(h[:])[:6]
+		ws = hex.EncodeToString(h[:])[:12]
 	}
 	return ws
 }

@@ -27,7 +27,7 @@ func TestGenerateSandboxName(t *testing.T) {
 	name := GenerateSandboxName("/path/to/my-project", "jvm")
 
 	// Format: <wshash(2)>-<workspace(12)>.<MMDD>-<cat(5)>-<hash(2)>
-	pattern := `^[0-9a-f]{2}-[a-zA-Z0-9_.-]{1,12}\.\d{4}-[a-z]{1,5}-[0-9a-f]{2}$`
+	pattern := `^[0-9a-f]{2}-[a-zA-Z0-9_.-]{1,12}\.\d{4}-[a-z]{5}-[0-9a-f]{2}$`
 	if matched, _ := regexp.MatchString(pattern, name); !matched {
 		t.Errorf("GenerateSandboxName = %q, want match %s", name, pattern)
 	}
@@ -80,7 +80,7 @@ func TestDegenerateWorkspaceNames(t *testing.T) {
 			name := GenerateSandboxName(tt.path, "jvm")
 
 			// Must still match the format and length constraint.
-			pattern := `^[0-9a-f]{2}-[a-zA-Z0-9_.-]{1,12}\.\d{4}-[a-z]{1,5}-[0-9a-f]{2}$`
+			pattern := `^[0-9a-f]{2}-[a-zA-Z0-9_.-]{1,12}\.\d{4}-[a-z]{5}-[0-9a-f]{2}$`
 			if matched, _ := regexp.MatchString(pattern, name); !matched {
 				t.Errorf("GenerateSandboxName(%q) = %q, want match %s", tt.path, name, pattern)
 			}
@@ -151,8 +151,8 @@ func TestWorkspaceHash(t *testing.T) {
 
 func TestRandomCatName(t *testing.T) {
 	name := randomCatName()
-	if len(name) == 0 || len(name) > 5 {
-		t.Errorf("randomCatName() = %q, want 1-5 chars", name)
+	if len(name) != 5 {
+		t.Errorf("randomCatName() = %q, want exactly 5 chars", name)
 	}
 	found := false
 	for _, c := range catNames {
@@ -237,13 +237,10 @@ func TestWorkspacePrefixMatchesDifferentTemplates(t *testing.T) {
 	}
 }
 
-func TestCatNamesMaxLength(t *testing.T) {
+func TestCatNamesExactLength(t *testing.T) {
 	for _, name := range catNames {
-		if len(name) > 5 {
-			t.Errorf("cat name %q is %d chars, want <= 5", name, len(name))
-		}
-		if len(name) == 0 {
-			t.Error("cat name is empty")
+		if len(name) != 5 {
+			t.Errorf("cat name %q is %d chars, want exactly 5", name, len(name))
 		}
 	}
 }
