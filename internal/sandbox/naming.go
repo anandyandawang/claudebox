@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const maxSandboxNameLen = 29
+
 var nonAlphanumeric = regexp.MustCompile(`[^a-zA-Z0-9_.\-]+`)
 
 // truncateClean truncates s to max chars and strips trailing hyphens and dots.
@@ -62,7 +64,7 @@ func GenerateSessionID() string {
 // Format: <wshash(2)>-<workspace(12)>.
 func WorkspacePrefix(workspacePath string) string {
 	wsName := SanitizeWorkspaceName(filepath.Base(workspacePath))
-	wsHash := workspaceHash(wsName)
+	wsHash := workspaceHash(workspacePath)
 	wsTrunc := truncateClean(wsName, 12)
 	return fmt.Sprintf("%s-%s.", wsHash, wsTrunc)
 }
@@ -70,7 +72,7 @@ func WorkspacePrefix(workspacePath string) string {
 // GenerateSandboxName returns: <wshash(2)>-<workspace(12)>.<MMDD>-<cat(5)>-<hash(2)>
 func GenerateSandboxName(workspacePath, template string) string {
 	wsName := SanitizeWorkspaceName(filepath.Base(workspacePath))
-	wsHash := workspaceHash(wsName)
+	wsHash := workspaceHash(workspacePath)
 	wsTrunc := truncateClean(wsName, 12)
 	cat := randomCatName()
 	iHash := instanceHash(template, cat)

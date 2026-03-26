@@ -32,9 +32,9 @@ func TestGenerateSandboxName(t *testing.T) {
 		t.Errorf("GenerateSandboxName = %q, want match %s", name, pattern)
 	}
 
-	// Max 29 chars
-	if len(name) > 29 {
-		t.Errorf("GenerateSandboxName length = %d, want <= 29", len(name))
+	// Max length
+	if len(name) > maxSandboxNameLen {
+		t.Errorf("GenerateSandboxName length = %d, want <= %d", len(name), maxSandboxNameLen)
 	}
 }
 
@@ -60,8 +60,8 @@ func TestGenerateSandboxNameTruncatesLongTemplate(t *testing.T) {
 
 	// Template feeds into the hash but doesn't appear in the name directly
 	// Just verify the name is valid and within length
-	if len(name) > 29 {
-		t.Errorf("name length = %d, want <= 29", len(name))
+	if len(name) > maxSandboxNameLen {
+		t.Errorf("name length = %d, want <= %d", len(name), maxSandboxNameLen)
 	}
 }
 
@@ -139,8 +139,8 @@ func TestGenerateSandboxNameMaxLength(t *testing.T) {
 	// Run many times to exercise different cat names
 	for i := 0; i < 100; i++ {
 		name := GenerateSandboxName("/path/to/abcdefghijklmnopqrstuvwxyz", "long-template-name")
-		if len(name) > 29 {
-			t.Errorf("iteration %d: name %q length = %d, want <= 29", i, name, len(name))
+		if len(name) > maxSandboxNameLen {
+			t.Errorf("iteration %d: name %q length = %d, want <= %d", i, name, len(name), maxSandboxNameLen)
 		}
 	}
 }
@@ -202,6 +202,27 @@ func TestWorkspacePrefixMatchesDifferentTemplates(t *testing.T) {
 	}
 	if !strings.HasPrefix(nameKotlin, prefix) {
 		t.Errorf("kotlin-spring name %q does not start with prefix %q", nameKotlin, prefix)
+	}
+}
+
+func TestCatNamesMaxLength(t *testing.T) {
+	for _, name := range catNames {
+		if len(name) > 5 {
+			t.Errorf("cat name %q is %d chars, want <= 5", name, len(name))
+		}
+		if len(name) == 0 {
+			t.Error("cat name is empty")
+		}
+	}
+}
+
+func TestWorkspacePrefixDifferentPaths(t *testing.T) {
+	// Same directory name, different parent paths — must get different prefixes
+	// because workspaceHash hashes the full path, not just the basename.
+	prefixA := WorkspacePrefix("/work/client-a/my-service")
+	prefixB := WorkspacePrefix("/work/client-b/my-service")
+	if prefixA == prefixB {
+		t.Errorf("same basename different paths got same prefix: %q", prefixA)
 	}
 }
 

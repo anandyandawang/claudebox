@@ -152,10 +152,15 @@ func TestRmAllRemovesMatchingSandboxes(t *testing.T) {
 	if err := os.Chdir(wsDir); err != nil {
 		t.Fatal(err)
 	}
+	// Use resolved cwd for generating names (macOS resolves symlinks in Getwd)
+	resolvedDir, err2 := os.Getwd()
+	if err2 != nil {
+		t.Fatal(err2)
+	}
 
 	// Generate sandbox names that match this workspace.
-	nameA := sandbox.GenerateSandboxName(wsDir, "jvm")
-	nameB := sandbox.GenerateSandboxName(wsDir, "kotlin-spring")
+	nameA := sandbox.GenerateSandboxName(resolvedDir, "jvm")
+	nameB := sandbox.GenerateSandboxName(resolvedDir, "kotlin-spring")
 
 	md := &mockDocker{lsOutput: []docker.SandboxInfo{
 		{Name: nameA},
@@ -204,9 +209,15 @@ func TestRmAllDoesNotRemoveDifferentWorkspace(t *testing.T) {
 	if err := os.Chdir(wsDirA); err != nil {
 		t.Fatal(err)
 	}
+	// Use resolved cwd (macOS resolves symlinks in Getwd)
+	resolvedDirA, err2 := os.Getwd()
+	if err2 != nil {
+		t.Fatal(err2)
+	}
+	resolvedDirB := filepath.Join(filepath.Dir(resolvedDirA), wsNameB)
 
-	prefixA := sandbox.WorkspacePrefix(wsDirA)
-	prefixB := sandbox.WorkspacePrefix(filepath.Join(tmpDir, wsNameB))
+	prefixA := sandbox.WorkspacePrefix(resolvedDirA)
+	prefixB := sandbox.WorkspacePrefix(resolvedDirB)
 
 	// Sanity: the prefixes must differ (the hash disambiguates).
 	if prefixA == prefixB {
@@ -214,10 +225,10 @@ func TestRmAllDoesNotRemoveDifferentWorkspace(t *testing.T) {
 	}
 
 	// Generate sandbox names for each workspace.
-	sandboxA1 := sandbox.GenerateSandboxName(wsDirA, "jvm")
-	sandboxA2 := sandbox.GenerateSandboxName(wsDirA, "kotlin-spring")
-	sandboxB1 := sandbox.GenerateSandboxName(filepath.Join(tmpDir, wsNameB), "jvm")
-	sandboxB2 := sandbox.GenerateSandboxName(filepath.Join(tmpDir, wsNameB), "jvm")
+	sandboxA1 := sandbox.GenerateSandboxName(resolvedDirA, "jvm")
+	sandboxA2 := sandbox.GenerateSandboxName(resolvedDirA, "kotlin-spring")
+	sandboxB1 := sandbox.GenerateSandboxName(resolvedDirB, "jvm")
+	sandboxB2 := sandbox.GenerateSandboxName(resolvedDirB, "jvm")
 
 	md := &mockDocker{lsOutput: []docker.SandboxInfo{
 		{Name: sandboxA1},
