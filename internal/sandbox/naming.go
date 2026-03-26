@@ -60,20 +60,29 @@ func GenerateSessionID() string {
 	return fmt.Sprintf("sandbox-%s", time.Now().Format("20060102-150405"))
 }
 
+// sanitizedWorkspace returns the truncated workspace name, falling back to
+// a hash prefix if the name is empty after sanitization and truncation.
+func sanitizedWorkspace(workspacePath string) string {
+	ws := truncateClean(SanitizeWorkspaceName(filepath.Base(workspacePath)), 12)
+	if ws == "" {
+		h := sha256.Sum256([]byte(workspacePath))
+		ws = hex.EncodeToString(h[:])[:6]
+	}
+	return ws
+}
+
 // WorkspacePrefix returns the prefix used to match all sandboxes for a workspace.
 // Format: <wshash(2)>-<workspace(12)>.
 func WorkspacePrefix(workspacePath string) string {
-	wsName := SanitizeWorkspaceName(filepath.Base(workspacePath))
 	wsHash := workspaceHash(workspacePath)
-	wsTrunc := truncateClean(wsName, 12)
+	wsTrunc := sanitizedWorkspace(workspacePath)
 	return fmt.Sprintf("%s-%s.", wsHash, wsTrunc)
 }
 
 // GenerateSandboxName returns: <wshash(2)>-<workspace(12)>.<MMDD>-<cat(5)>-<hash(2)>
 func GenerateSandboxName(workspacePath, template string) string {
-	wsName := SanitizeWorkspaceName(filepath.Base(workspacePath))
 	wsHash := workspaceHash(workspacePath)
-	wsTrunc := truncateClean(wsName, 12)
+	wsTrunc := sanitizedWorkspace(workspacePath)
 	cat := randomCatName()
 	iHash := instanceHash(template, cat)
 	mmdd := time.Now().Format("0102")

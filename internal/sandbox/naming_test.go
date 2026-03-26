@@ -65,6 +65,38 @@ func TestGenerateSandboxNameTruncatesLongTemplate(t *testing.T) {
 	}
 }
 
+func TestDegenerateWorkspaceNames(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"all dots", "/path/to/..."},
+		{"root", "/"},
+		{"all special chars", "/path/to/@@@"},
+		{"hyphens only", "/path/to/---"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			name := GenerateSandboxName(tt.path, "jvm")
+
+			// Must still match the format and length constraint.
+			pattern := `^[0-9a-f]{2}-[a-zA-Z0-9_.-]{1,12}\.\d{4}-[a-z]{1,5}-[0-9a-f]{2}$`
+			if matched, _ := regexp.MatchString(pattern, name); !matched {
+				t.Errorf("GenerateSandboxName(%q) = %q, want match %s", tt.path, name, pattern)
+			}
+			if len(name) > maxSandboxNameLen {
+				t.Errorf("length = %d, want <= %d", len(name), maxSandboxNameLen)
+			}
+
+			// Prefix must work too.
+			prefix := WorkspacePrefix(tt.path)
+			if !strings.HasPrefix(name, prefix) {
+				t.Errorf("name %q does not start with prefix %q", name, prefix)
+			}
+		})
+	}
+}
+
 func TestGenerateSessionID(t *testing.T) {
 	id := GenerateSessionID()
 	pattern := `^sandbox-\d{8}-\d{6}$`
