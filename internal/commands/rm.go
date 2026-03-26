@@ -6,7 +6,6 @@ import (
 	"claudebox/internal/sandbox"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -24,7 +23,7 @@ func NewRmCmd(d docker.Docker) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				prefix := sandbox.SanitizeWorkspaceName(filepath.Base(wd)) + "-"
+				prefix := sandbox.WorkspacePrefix(wd)
 				count, err := mgr.RemoveAll(prefix)
 				if err != nil {
 					return err
