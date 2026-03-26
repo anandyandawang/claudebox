@@ -11,7 +11,13 @@ import (
 	"time"
 )
 
-const maxSandboxNameLen = 29
+const (
+	maxSandboxNameLen = 29
+	maxWorkspaceLen   = 12
+	catNameLen        = 5
+	wsHashLen         = 2
+	instanceHashLen   = 2
+)
 
 var nonAlphanumeric = regexp.MustCompile(`[^a-zA-Z0-9_.\-]+`)
 
@@ -26,22 +32,22 @@ func truncateClean(s string, max int) string {
 // workspaceHash returns the first 2 hex chars of SHA-256 of the full workspace path.
 func workspaceHash(fullWorkspace string) string {
 	h := sha256.Sum256([]byte(fullWorkspace))
-	return hex.EncodeToString(h[:])[:2]
+	return hex.EncodeToString(h[:])[:wsHashLen]
 }
 
 // instanceHash returns the first 2 hex chars of SHA-256 of template + cat + microsecond timestamp.
 func instanceHash(fullTemplate, cat string) string {
 	us := fmt.Sprintf("%d", time.Now().UnixMicro())
 	h := sha256.Sum256([]byte(fullTemplate + cat + us))
-	return hex.EncodeToString(h[:])[:2]
+	return hex.EncodeToString(h[:])[:instanceHashLen]
 }
 
 var catNames = []string{
 	"chonk", "floof", "beans", "bongo", "mochi",
-	"simba", "felix", "salem", "socks", "fluff",
-	"grump", "chomp", "tabby", "catto", "meows",
-	"purrs", "bonks", "bloop", "smols", "nyans",
-	"marus", "bleps", "mlems", "loafs", "boops",
+	"socks", "fluff", "grump", "chomp", "tabby",
+	"catto", "meows", "purrs", "bonks", "bloop",
+	"smols", "nyans", "marus", "bleps", "mlems",
+	"loafs", "boops", "snoot", "toeby", "pawsy",
 }
 
 // randomCatName picks a random cat name from the list.
@@ -63,10 +69,10 @@ func GenerateSessionID() string {
 // sanitizedWorkspace returns the truncated workspace name, falling back to
 // a hash prefix if the name is empty after sanitization and truncation.
 func sanitizedWorkspace(workspacePath string) string {
-	ws := truncateClean(SanitizeWorkspaceName(filepath.Base(workspacePath)), 12)
+	ws := truncateClean(SanitizeWorkspaceName(filepath.Base(workspacePath)), maxWorkspaceLen)
 	if ws == "" {
 		h := sha256.Sum256([]byte(workspacePath))
-		ws = hex.EncodeToString(h[:])[:12]
+		ws = hex.EncodeToString(h[:])[:maxWorkspaceLen]
 	}
 	return ws
 }
