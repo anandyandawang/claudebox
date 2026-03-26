@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -24,9 +25,43 @@ func TestSanitizeWorkspaceName(t *testing.T) {
 
 func TestGenerateSandboxName(t *testing.T) {
 	name := GenerateSandboxName("/path/to/my-project", "jvm")
-	pattern := `^my-project-jvm-sandbox-\d{8}-\d{6}$`
+
+	// Format: <wshash(2)>-<workspace(12)>.<MMDD>-<cat(5)>-<hash(2)>
+	pattern := `^[0-9a-f]{2}-[a-zA-Z0-9_.-]{1,12}\.\d{4}-[a-z]{1,5}-[0-9a-f]{2}$`
 	if matched, _ := regexp.MatchString(pattern, name); !matched {
 		t.Errorf("GenerateSandboxName = %q, want match %s", name, pattern)
+	}
+
+	// Max 29 chars
+	if len(name) > 29 {
+		t.Errorf("GenerateSandboxName length = %d, want <= 29", len(name))
+	}
+}
+
+func TestGenerateSandboxNameTruncatesLongWorkspace(t *testing.T) {
+	name := GenerateSandboxName("/path/to/lambda-jpm-clearings", "jvm")
+
+	// "lambda-jpm-clearings" is 20 chars, should truncate to 12
+	// Workspace part is between first dash and the dot
+	dotIdx := strings.Index(name, ".")
+	if dotIdx == -1 {
+		t.Fatalf("no dot in name: %q", name)
+	}
+	wsPart := name[:dotIdx] // e.g. "b4-lambda-jpm-c"
+	// wshash is 2 chars + dash = 3, so workspace is wsPart[3:]
+	ws := wsPart[3:]
+	if len(ws) > 12 {
+		t.Errorf("workspace portion %q exceeds 12 chars", ws)
+	}
+}
+
+func TestGenerateSandboxNameTruncatesLongTemplate(t *testing.T) {
+	name := GenerateSandboxName("/path/to/myapp", "kotlin-spring")
+
+	// Template feeds into the hash but doesn't appear in the name directly
+	// Just verify the name is valid and within length
+	if len(name) > 29 {
+		t.Errorf("name length = %d, want <= 29", len(name))
 	}
 }
 
@@ -96,5 +131,26 @@ func TestRandomCatName(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("randomCatName() = %q, not in catNames list", name)
+	}
+}
+
+func TestWorkspacePrefix(t *testing.T) {
+	prefix := WorkspacePrefix("/path/to/lambda-jpm-clearings")
+
+	// Should end with a dot
+	if !strings.HasSuffix(prefix, ".") {
+		t.Errorf("WorkspacePrefix = %q, want suffix '.'", prefix)
+	}
+
+	// Should match the beginning of a generated name for the same workspace
+	name := GenerateSandboxName("/path/to/lambda-jpm-clearings", "jvm")
+	if !strings.HasPrefix(name, prefix) {
+		t.Errorf("name %q does not start with prefix %q", name, prefix)
+	}
+
+	// Different workspace with same 12-char prefix should get a different prefix
+	prefix2 := WorkspacePrefix("/path/to/lambda-jpm-clients")
+	if prefix == prefix2 {
+		t.Errorf("different workspaces got same prefix: %q", prefix)
 	}
 }

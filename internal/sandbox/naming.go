@@ -58,8 +58,22 @@ func GenerateSessionID() string {
 	return fmt.Sprintf("sandbox-%s", time.Now().Format("20060102-150405"))
 }
 
-// GenerateSandboxName returns: <workspace>-<template>-sandbox-YYYYMMDD-HHMMSS.
+// WorkspacePrefix returns the prefix used to match all sandboxes for a workspace.
+// Format: <wshash(2)>-<workspace(12)>.
+func WorkspacePrefix(workspacePath string) string {
+	wsName := SanitizeWorkspaceName(filepath.Base(workspacePath))
+	wsHash := workspaceHash(wsName)
+	wsTrunc := truncateClean(wsName, 12)
+	return fmt.Sprintf("%s-%s.", wsHash, wsTrunc)
+}
+
+// GenerateSandboxName returns: <wshash(2)>-<workspace(12)>.<MMDD>-<cat(5)>-<hash(2)>
 func GenerateSandboxName(workspacePath, template string) string {
 	wsName := SanitizeWorkspaceName(filepath.Base(workspacePath))
-	return fmt.Sprintf("%s-%s-%s", wsName, template, GenerateSessionID())
+	wsHash := workspaceHash(wsName)
+	wsTrunc := truncateClean(wsName, 12)
+	cat := randomCatName()
+	iHash := instanceHash(template, cat)
+	mmdd := time.Now().Format("0102")
+	return fmt.Sprintf("%s-%s.%s-%s-%s", wsHash, wsTrunc, mmdd, cat, iHash)
 }
