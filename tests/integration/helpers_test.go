@@ -4,7 +4,6 @@ package integration
 
 import (
 	"claudebox/internal/docker"
-	"claudebox/internal/environment"
 	"claudebox/internal/sandbox"
 	"fmt"
 	"os"
@@ -63,7 +62,7 @@ func createTestSandbox(t *testing.T, template, workspace string) string {
 		t.Fatalf("failed to create sandbox: %v", err)
 	}
 
-	if err := environment.Setup(testDocker, name); err != nil {
+	if err := testManager.RunSetupScript(name, template); err != nil {
 		t.Fatalf("failed to setup environment: %v", err)
 	}
 	if err := testManager.WrapClaudeBinary(name); err != nil {
