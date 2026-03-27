@@ -4,7 +4,6 @@ package commands
 import (
 	"claudebox/internal/credentials"
 	"claudebox/internal/docker"
-	"claudebox/internal/environment"
 	"claudebox/internal/sandbox"
 	"fmt"
 	"os"
@@ -68,7 +67,13 @@ func RunCreate(d docker.Docker, templatesDir string, args []string) error {
 	}
 
 	// 5. Setup environment
-	if err := environment.Setup(d, sandboxName); err != nil {
+	if username := os.Getenv("GITHUB_USERNAME"); username != "" {
+		script := fmt.Sprintf("printf 'export GITHUB_USERNAME=%%s\\n' %q >> /etc/sandbox-persistent.sh", username)
+		if _, err := d.SandboxExec(sandboxName, "sh", "-c", script); err != nil {
+			return fmt.Errorf("setting GITHUB_USERNAME: %w", err)
+		}
+	}
+	if err := mgr.RunSetupScript(sandboxName, template); err != nil {
 		return err
 	}
 
