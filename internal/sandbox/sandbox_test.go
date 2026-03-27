@@ -231,3 +231,35 @@ func TestRemoveAll(t *testing.T) {
 		t.Errorf("RemoveAll: got %d, want 2", count)
 	}
 }
+
+func TestRunSetupScript(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "jvm"), 0o755)
+	os.WriteFile(filepath.Join(dir, "jvm", "setup.sh"), []byte("#!/bin/sh\necho hello"), 0o755)
+
+	m := &mockDocker{}
+	mgr := NewManager(m, dir)
+
+	if err := mgr.RunSetupScript("my-sandbox", "jvm"); err != nil {
+		t.Fatal(err)
+	}
+	if len(m.calls) != 1 || m.calls[0].method != "SandboxExec" {
+		t.Fatalf("expected 1 SandboxExec call, got %v", m.calls)
+	}
+	script := strings.Join(m.calls[0].args, " ")
+	if !strings.Contains(script, "echo hello") {
+		t.Errorf("should execute setup.sh contents, got: %s", script)
+	}
+}
+
+func TestRunSetupScriptNoFile(t *testing.T) {
+	m := &mockDocker{}
+	mgr := NewManager(m, t.TempDir())
+
+	if err := mgr.RunSetupScript("my-sandbox", "jvm"); err != nil {
+		t.Fatal(err)
+	}
+	if len(m.calls) != 0 {
+		t.Errorf("should not exec when no setup.sh, got %v", m.calls)
+	}
+}

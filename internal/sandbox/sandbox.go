@@ -79,6 +79,23 @@ func (m *Manager) Create(sandboxName string, opts CreateOpts) error {
 	return nil
 }
 
+// RunSetupScript reads setup.sh from the template directory and executes it
+// inside the container. If no setup.sh exists, it's a no-op.
+func (m *Manager) RunSetupScript(sandboxName, template string) error {
+	scriptPath := filepath.Join(m.templatesDir, template, "setup.sh")
+	script, err := os.ReadFile(scriptPath)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("reading setup script: %w", err)
+	}
+	if _, err := m.docker.SandboxExec(sandboxName, "sh", "-c", string(script)); err != nil {
+		return fmt.Errorf("running setup script: %w", err)
+	}
+	return nil
+}
+
 // ApplyNetworkPolicy reads allowed-hosts.txt and applies deny-by-default network policy.
 // Returns true if a policy was applied.
 func (m *Manager) ApplyNetworkPolicy(sandboxName, template string) (bool, error) {
