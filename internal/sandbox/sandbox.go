@@ -6,6 +6,7 @@ import (
 	"claudebox/internal/docker"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -47,36 +48,104 @@ func (m *Manager) BuildImage(template string) (string, error) {
 	return imageName, nil
 }
 
-// Create creates a sandbox, symlinks config, copies workspace, and creates a git branch.
+// Create creates a sandbox with tar-piped workspace and config, no host mounts.
 func (m *Manager) Create(sandboxName string, opts CreateOpts) error {
+	// Create and immediately delete a temp dir for the required workspace arg.
+	// After deletion, the virtiofs mount inside the sandbox becomes a dead end.
+	tmpDir, err := os.MkdirTemp("", "claudebox-")
+	if err != nil {
+		return fmt.Errorf("creating temp dir: %w", err)
+	}
 	if err := m.docker.SandboxCreate(sandboxName, docker.SandboxCreateOpts{
 		Image:     opts.ImageName,
 		Command:   "claude",
-		Workspace: opts.Workspace,
+		Workspace: tmpDir,
 	}); err != nil {
+		os.RemoveAll(tmpDir)
 		return fmt.Errorf("creating sandbox: %w", err)
 	}
+	os.RemoveAll(tmpDir)
 
-	// Symlink host Claude config
-	symlinks := [][2]string{
-		{opts.ClaudeDir + "/.claude.json", "/home/agent/.claude.json"},
-		{opts.ClaudeDir + "/settings.json", "/home/agent/.claude/settings.json"},
-		{opts.ClaudeDir + "/plugins", "/home/agent/.claude/plugins"},
-	}
-	for _, sl := range symlinks {
-		if _, err := m.docker.SandboxExec(sandboxName, "ln", "-sf", sl[0], sl[1]); err != nil {
-			return fmt.Errorf("symlinking %s: %w", sl[1], err)
-		}
-	}
-
-	// Copy workspace, clean, and create branch
-	script := fmt.Sprintf(
-		`cp -a '%s/.' /home/agent/workspace/ && cd /home/agent/workspace && git clean -fdx -q && git checkout -b '%s'`,
-		opts.Workspace, opts.SessionID)
-	if _, err := m.docker.SandboxExec(sandboxName, "sh", "-c", script); err != nil {
+	// Tar-pipe workspace into sandbox
+	if err := m.tarPipeDir(sandboxName, opts.Workspace, "/home/agent/workspace/"); err != nil {
 		return fmt.Errorf("copying workspace: %w", err)
 	}
+
+	// Tar-pipe Claude config files into sandbox
+	if err := m.tarPipeClaudeConfig(sandboxName, opts.ClaudeDir); err != nil {
+		return fmt.Errorf("copying claude config: %w", err)
+	}
+
+	// Clean and create branch in workspace copy
+	script := fmt.Sprintf(
+		`cd /home/agent/workspace && git clean -fdx -q && git checkout -b '%s'`,
+		opts.SessionID)
+	if _, err := m.docker.SandboxExec(sandboxName, "sh", "-c", script); err != nil {
+		return fmt.Errorf("setting up workspace: %w", err)
+	}
 	return nil
+}
+
+// tarPipeDir tars a host directory and pipes it into the sandbox at destDir.
+func (m *Manager) tarPipeDir(sandboxName, srcDir, destDir string) error {
+	tarCmd := exec.Command("tar", "-C", srcDir, "-c", ".")
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		return err
+	}
+	tarCmd.Stdout = pw
+	if err := tarCmd.Start(); err != nil {
+		pr.Close()
+		pw.Close()
+		return err
+	}
+	pw.Close()
+	extractErr := m.docker.SandboxExecWithStdin(pr, sandboxName, "sh", "-c", "tar -C '"+destDir+"' -x")
+	pr.Close()
+	tarCmd.Wait()
+	return extractErr
+}
+
+// tarPipeClaudeConfig copies .claude.json, settings.json, and plugins/ into the sandbox.
+func (m *Manager) tarPipeClaudeConfig(sandboxName, claudeDir string) error {
+	// Build tar args for only the files that exist
+	var files []string
+	for _, f := range []string{".claude.json", "settings.json"} {
+		if _, err := os.Stat(filepath.Join(claudeDir, f)); err == nil {
+			files = append(files, f)
+		}
+	}
+	if info, err := os.Stat(filepath.Join(claudeDir, "plugins")); err == nil && info.IsDir() {
+		files = append(files, "plugins")
+	}
+	if len(files) == 0 {
+		return nil
+	}
+
+	// Ensure target dirs exist
+	m.docker.SandboxExec(sandboxName, "mkdir", "-p", "/home/agent/.claude")
+
+	args := append([]string{"-C", claudeDir, "-c"}, files...)
+	tarCmd := exec.Command("tar", args...)
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		return err
+	}
+	tarCmd.Stdout = pw
+	if err := tarCmd.Start(); err != nil {
+		pr.Close()
+		pw.Close()
+		return err
+	}
+	pw.Close()
+	extractErr := m.docker.SandboxExecWithStdin(pr, sandboxName, "sh", "-c", "tar -C /home/agent/.claude -x")
+	pr.Close()
+	tarCmd.Wait()
+
+	// Symlink .claude.json to home dir (Claude expects it at ~/.claude.json)
+	m.docker.SandboxExec(sandboxName, "ln", "-sf", "/home/agent/.claude/.claude.json", "/home/agent/.claude.json")
+
+	return extractErr
 }
 
 // ApplyNetworkPolicy reads allowed-hosts.txt and applies deny-by-default network policy.

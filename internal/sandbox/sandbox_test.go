@@ -122,25 +122,56 @@ func TestCreate(t *testing.T) {
 	m := &mockDocker{}
 	mgr := NewManager(m, "/templates")
 
+	// Create real workspace dir for tar to work
+	workspace := t.TempDir()
+	os.WriteFile(filepath.Join(workspace, "main.go"), []byte("package main"), 0o644)
+
+	// Create real claude dir with config files
+	claudeDir := t.TempDir()
+	os.WriteFile(filepath.Join(claudeDir, ".claude.json"), []byte("{}"), 0o644)
+	os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte("{}"), 0o644)
+
 	err := mgr.Create("test-sandbox", CreateOpts{
 		ImageName: "jvm-sandbox",
-		Workspace: "/path/to/workspace",
-		ClaudeDir: "/home/user/.claude",
+		Workspace: workspace,
+		ClaudeDir: claudeDir,
 		SessionID: "sandbox-20260325-120000",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// First call: SandboxCreate
+	// First call: SandboxCreate with a temp dir workspace
 	if m.calls[0].method != "SandboxCreate" {
-		t.Errorf("call[0]: got %s, want SandboxCreate", m.calls[0].method)
+		t.Fatalf("call[0]: got %s, want SandboxCreate", m.calls[0].method)
 	}
-	// Remaining calls: SandboxExec for symlinks and workspace copy
-	for _, c := range m.calls[1:] {
-		if c.method != "SandboxExec" {
-			t.Errorf("unexpected call: %s", c.method)
+	// Workspace arg should NOT be the real workspace or claude dir
+	createWorkspace := m.calls[0].args[3]
+	if createWorkspace == workspace || createWorkspace == claudeDir {
+		t.Errorf("SandboxCreate should use a temp dir, not %q", createWorkspace)
+	}
+
+	// Should have SandboxExecWithStdin calls for tar-pipe (workspace + claude config)
+	var stdinCalls []call
+	for _, c := range m.calls {
+		if c.method == "SandboxExecWithStdin" {
+			stdinCalls = append(stdinCalls, c)
 		}
+	}
+	if len(stdinCalls) < 2 {
+		t.Errorf("expected at least 2 SandboxExecWithStdin calls (workspace + config), got %d", len(stdinCalls))
+	}
+
+	// Should have SandboxExec call for git clean + checkout
+	var gitCall *call
+	for _, c := range m.calls {
+		if c.method == "SandboxExec" && strings.Contains(strings.Join(c.args, " "), "git clean") {
+			gitCall = &c
+			break
+		}
+	}
+	if gitCall == nil {
+		t.Error("expected SandboxExec call with git clean")
 	}
 }
 
