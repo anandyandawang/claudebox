@@ -4,6 +4,7 @@ package sandbox
 import (
 	"claudebox/internal/docker"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -52,6 +53,14 @@ func (m *mockDocker) SandboxExec(name string, args ...string) (string, error) {
 		}
 	}
 	return "", nil
+}
+
+func (m *mockDocker) SandboxExecWithStdin(r io.Reader, name string, args ...string) error {
+	m.record("SandboxExecWithStdin", append([]string{name}, args...)...)
+	if m.failOn == "SandboxExecWithStdin" {
+		return fmt.Errorf("exec with stdin failed")
+	}
+	return nil
 }
 
 func (m *mockDocker) SandboxLs(filter string) ([]docker.SandboxInfo, error) {

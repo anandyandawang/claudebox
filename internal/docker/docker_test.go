@@ -3,6 +3,7 @@ package docker
 import (
 	"os/exec"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -120,6 +121,25 @@ func TestSandboxRun(t *testing.T) {
 	want := []string{"docker", "sandbox", "run", "my-sandbox", "--", "--dangerously-skip-permissions"}
 	if !reflect.DeepEqual(calls[0], want) {
 		t.Errorf("SandboxRun args:\n  got  %v\n  want %v", calls[0], want)
+	}
+}
+
+func TestSandboxExecWithStdin(t *testing.T) {
+	var calls [][]string
+	c := &Client{newCmd: func(name string, args ...string) *exec.Cmd {
+		calls = append(calls, append([]string{name}, args...))
+		// cat will read stdin and output it; we use it to verify stdin is wired
+		return exec.Command("cat")
+	}}
+
+	input := strings.NewReader("hello from stdin")
+	err := c.SandboxExecWithStdin(input, "my-sandbox", "sh", "-c", "tar -x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"docker", "sandbox", "exec", "-i", "my-sandbox", "sh", "-c", "tar -x"}
+	if !reflect.DeepEqual(calls[0], want) {
+		t.Errorf("SandboxExecWithStdin args:\n  got  %v\n  want %v", calls[0], want)
 	}
 }
 

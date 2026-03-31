@@ -6,6 +6,7 @@ import (
 	"claudebox/internal/docker"
 	"claudebox/internal/sandbox"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -41,7 +42,8 @@ func (m *mockDocker) SandboxRm(name string) error {
 	}
 	return nil
 }
-func (m *mockDocker) SandboxNetworkProxy(string, []string) error { return nil }
+func (m *mockDocker) SandboxExecWithStdin(io.Reader, string, ...string) error { return nil }
+func (m *mockDocker) SandboxNetworkProxy(string, []string) error              { return nil }
 
 func TestLsCommand(t *testing.T) {
 	md := &mockDocker{lsOutput: []docker.SandboxInfo{

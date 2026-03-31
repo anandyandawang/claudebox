@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -12,6 +13,7 @@ type Docker interface {
 	SandboxCreate(name string, opts SandboxCreateOpts) error
 	SandboxRun(name string, args ...string) error
 	SandboxExec(name string, args ...string) (string, error)
+	SandboxExecWithStdin(r io.Reader, name string, args ...string) error
 	SandboxLs(filter string) ([]SandboxInfo, error)
 	SandboxRm(name string) error
 	SandboxNetworkProxy(name string, allowedHosts []string) error
@@ -76,6 +78,13 @@ func (c *Client) SandboxExec(name string, args ...string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+func (c *Client) SandboxExecWithStdin(r io.Reader, name string, args ...string) error {
+	cmdArgs := append([]string{"sandbox", "exec", "-i", name}, args...)
+	cmd := c.newCmd("docker", cmdArgs...)
+	cmd.Stdin = r
+	return cmd.Run()
 }
 
 func (c *Client) SandboxLs(filter string) ([]SandboxInfo, error) {
