@@ -42,7 +42,10 @@ func (m *mockDocker) SandboxRm(name string) error {
 	}
 	return nil
 }
-func (m *mockDocker) SandboxExecWithStdin(io.Reader, string, ...string) error { return nil }
+func (m *mockDocker) SandboxExecWithStdin(r io.Reader, _ string, _ ...string) error {
+	io.Copy(io.Discard, r) // drain to avoid pipe deadlock
+	return nil
+}
 func (m *mockDocker) SandboxNetworkProxy(string, []string) error              { return nil }
 
 func TestLsCommand(t *testing.T) {

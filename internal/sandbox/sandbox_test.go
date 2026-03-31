@@ -256,6 +256,31 @@ func TestList(t *testing.T) {
 	}
 }
 
+func TestRefreshConfig(t *testing.T) {
+	m := &mockDocker{}
+	mgr := NewManager(m, "/templates")
+
+	claudeDir := t.TempDir()
+	os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(`{}`), 0o644)
+	os.MkdirAll(filepath.Join(claudeDir, "plugins"), 0o755)
+
+	err := mgr.RefreshConfig("test-sandbox", claudeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Should have SandboxExecWithStdin call for tar-pipe
+	var stdinCalls int
+	for _, c := range m.calls {
+		if c.method == "SandboxExecWithStdin" {
+			stdinCalls++
+		}
+	}
+	if stdinCalls == 0 {
+		t.Error("expected SandboxExecWithStdin call for config refresh")
+	}
+}
+
 func TestRemoveAll(t *testing.T) {
 	m := &mockDocker{lsOutput: []docker.SandboxInfo{
 		{Name: "proj-jvm-1"},

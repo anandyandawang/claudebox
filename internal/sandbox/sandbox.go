@@ -160,6 +160,46 @@ func (m *Manager) tarPipeClaudeConfig(sandboxName, claudeDir string) error {
 	return extractErr
 }
 
+// RefreshConfig re-copies settings.json and plugins/ from the host into the sandbox.
+// Called on resume to pick up any host-side changes.
+func (m *Manager) RefreshConfig(sandboxName, claudeDir string) error {
+	var files []string
+	for _, f := range []string{"settings.json"} {
+		if _, err := os.Stat(filepath.Join(claudeDir, f)); err == nil {
+			files = append(files, f)
+		}
+	}
+	if info, err := os.Stat(filepath.Join(claudeDir, "plugins")); err == nil && info.IsDir() {
+		files = append(files, "plugins")
+	}
+	if len(files) == 0 {
+		return nil
+	}
+
+	args := append([]string{"-C", claudeDir, "-c"}, files...)
+	tarCmd := exec.Command("tar", args...)
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		return err
+	}
+	tarCmd.Stdout = pw
+	if err := tarCmd.Start(); err != nil {
+		pr.Close()
+		pw.Close()
+		return err
+	}
+	pw.Close()
+	extractErr := m.docker.SandboxExecWithStdin(pr, sandboxName, "tar", "-C", "/home/agent/.claude", "-x")
+	pr.Close()
+	if waitErr := tarCmd.Wait(); waitErr != nil {
+		if extractErr != nil {
+			return fmt.Errorf("tar create: %w; extract: %v", waitErr, extractErr)
+		}
+		return fmt.Errorf("tar create: %w", waitErr)
+	}
+	return extractErr
+}
+
 // ApplyNetworkPolicy reads allowed-hosts.txt and applies deny-by-default network policy.
 // Returns true if a policy was applied.
 func (m *Manager) ApplyNetworkPolicy(sandboxName, template string) (bool, error) {
