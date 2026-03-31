@@ -3,6 +3,7 @@
 package integration
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"testing"
@@ -47,13 +48,21 @@ func TestNoNetworkPolicyAllowsAll(t *testing.T) {
 	defer exec.Command("docker", "rmi", "nofilter-sandbox").Run()
 
 	name := "cb-nofilt-test-sandbox"
-	homeDir := os.Getenv("HOME")
+	mountDir := t.TempDir()
 	cmd = exec.Command("docker", "sandbox", "create", "-t", "nofilter-sandbox",
-		"--name", name, "claude", workspace, homeDir+"/.claude")
+		"--name", name, "claude", mountDir)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("create failed: %s", out)
 	}
+	os.RemoveAll(mountDir)
 	defer func() { exec.Command("docker", "sandbox", "rm", name).Run() }()
+
+	// Tar-pipe workspace in
+	tarPipe := exec.Command("sh", "-c",
+		fmt.Sprintf("tar -C '%s' -c . | docker sandbox exec -i '%s' sh -c 'tar -C /home/agent/workspace -x'", workspace, name))
+	if out, err := tarPipe.CombinedOutput(); err != nil {
+		t.Fatalf("tar-pipe failed: %s", out)
+	}
 
 	_, err := testDocker.SandboxExec(name,
 		"curl", "--connect-timeout", "10", "-sf", "https://example.com")
