@@ -33,15 +33,15 @@ func TestSandboxCreate(t *testing.T) {
 	c := &Client{newCmd: captureCmd(&calls)}
 
 	err := c.SandboxCreate("my-sandbox", SandboxCreateOpts{
-		Image:   "jvm-sandbox",
-		Command: "claude",
-		Mounts:  []string{"/workspace", "/home/user/.claude"},
+		Image:     "jvm-sandbox",
+		Command:   "claude",
+		Workspace: "/tmp/claudebox-abc123",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := []string{"docker", "sandbox", "create", "-t", "jvm-sandbox",
-		"--name", "my-sandbox", "claude", "/workspace", "/home/user/.claude"}
+		"--name", "my-sandbox", "claude", "/tmp/claudebox-abc123"}
 	if !reflect.DeepEqual(calls[0], want) {
 		t.Errorf("SandboxCreate args:\n  got  %v\n  want %v", calls[0], want)
 	}

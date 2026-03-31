@@ -50,9 +50,9 @@ func (m *Manager) BuildImage(template string) (string, error) {
 // Create creates a sandbox, symlinks config, copies workspace, and creates a git branch.
 func (m *Manager) Create(sandboxName string, opts CreateOpts) error {
 	if err := m.docker.SandboxCreate(sandboxName, docker.SandboxCreateOpts{
-		Image:   opts.ImageName,
-		Command: "claude",
-		Mounts:  []string{opts.Workspace, opts.ClaudeDir},
+		Image:     opts.ImageName,
+		Command:   "claude",
+		Workspace: opts.Workspace,
 	}); err != nil {
 		return fmt.Errorf("creating sandbox: %w", err)
 	}

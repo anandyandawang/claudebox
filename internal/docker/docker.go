@@ -21,9 +21,9 @@ type Docker interface {
 
 // SandboxCreateOpts holds options for creating a sandbox.
 type SandboxCreateOpts struct {
-	Image   string   // Docker image tag
-	Command string   // Base command (e.g. "claude")
-	Mounts  []string // Positional args: workspace path, claude config dir
+	Image     string // Docker image tag
+	Command   string // Base command (e.g. "claude")
+	Workspace string // Primary workspace path (temp dir, deleted after creation)
 }
 
 // SandboxInfo represents a sandbox from docker sandbox ls.
@@ -49,8 +49,7 @@ func (c *Client) Build(tag string, contextDir string) error {
 }
 
 func (c *Client) SandboxCreate(name string, opts SandboxCreateOpts) error {
-	args := []string{"sandbox", "create", "-t", opts.Image, "--name", name, opts.Command}
-	args = append(args, opts.Mounts...)
+	args := []string{"sandbox", "create", "-t", opts.Image, "--name", name, opts.Command, opts.Workspace}
 	cmd := c.newCmd("docker", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

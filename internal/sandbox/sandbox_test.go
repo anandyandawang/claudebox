@@ -34,7 +34,7 @@ func (m *mockDocker) Build(tag, contextDir string) error {
 }
 
 func (m *mockDocker) SandboxCreate(name string, opts docker.SandboxCreateOpts) error {
-	m.record("SandboxCreate", name, opts.Image, opts.Command)
+	m.record("SandboxCreate", name, opts.Image, opts.Command, opts.Workspace)
 	if m.failOn == "SandboxCreate" { return fmt.Errorf("create failed") }
 	return nil
 }
