@@ -100,9 +100,14 @@ func (m *Manager) tarPipeDir(sandboxName, srcDir, destDir string) error {
 		return err
 	}
 	pw.Close()
-	extractErr := m.docker.SandboxExecWithStdin(pr, sandboxName, "sh", "-c", "tar -C '"+destDir+"' -x")
+	extractErr := m.docker.SandboxExecWithStdin(pr, sandboxName, "tar", "-C", destDir, "-x")
 	pr.Close()
-	tarCmd.Wait()
+	if waitErr := tarCmd.Wait(); waitErr != nil {
+		if extractErr != nil {
+			return fmt.Errorf("tar create: %w; extract: %v", waitErr, extractErr)
+		}
+		return fmt.Errorf("tar create: %w", waitErr)
+	}
 	return extractErr
 }
 
@@ -123,7 +128,9 @@ func (m *Manager) tarPipeClaudeConfig(sandboxName, claudeDir string) error {
 	}
 
 	// Ensure target dirs exist
-	m.docker.SandboxExec(sandboxName, "mkdir", "-p", "/home/agent/.claude")
+	if _, err := m.docker.SandboxExec(sandboxName, "mkdir", "-p", "/home/agent/.claude"); err != nil {
+		return fmt.Errorf("creating .claude dir: %w", err)
+	}
 
 	args := append([]string{"-C", claudeDir, "-c"}, files...)
 	tarCmd := exec.Command("tar", args...)
@@ -138,9 +145,14 @@ func (m *Manager) tarPipeClaudeConfig(sandboxName, claudeDir string) error {
 		return err
 	}
 	pw.Close()
-	extractErr := m.docker.SandboxExecWithStdin(pr, sandboxName, "sh", "-c", "tar -C /home/agent/.claude -x")
+	extractErr := m.docker.SandboxExecWithStdin(pr, sandboxName, "tar", "-C", "/home/agent/.claude", "-x")
 	pr.Close()
-	tarCmd.Wait()
+	if waitErr := tarCmd.Wait(); waitErr != nil {
+		if extractErr != nil {
+			return fmt.Errorf("tar create: %w; extract: %v", waitErr, extractErr)
+		}
+		return fmt.Errorf("tar create: %w", waitErr)
+	}
 
 	// Symlink .claude.json to home dir (Claude expects it at ~/.claude.json)
 	m.docker.SandboxExec(sandboxName, "ln", "-sf", "/home/agent/.claude/.claude.json", "/home/agent/.claude.json")

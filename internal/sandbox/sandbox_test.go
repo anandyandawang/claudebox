@@ -57,6 +57,7 @@ func (m *mockDocker) SandboxExec(name string, args ...string) (string, error) {
 
 func (m *mockDocker) SandboxExecWithStdin(r io.Reader, name string, args ...string) error {
 	m.record("SandboxExecWithStdin", append([]string{name}, args...)...)
+	io.Copy(io.Discard, r) // drain to avoid pipe deadlock
 	if m.failOn == "SandboxExecWithStdin" {
 		return fmt.Errorf("exec with stdin failed")
 	}
