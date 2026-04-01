@@ -4,6 +4,7 @@ package integration
 
 import (
 	"claudebox/internal/sandbox"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -46,6 +47,20 @@ func TestFilesystemLayout(t *testing.T) {
 		}
 		if !strings.Contains(out, "cd /home/agent/workspace") {
 			t.Errorf("claude wrapper should contain cd: got %s", out)
+		}
+	})
+
+	t.Run("plugin paths rewritten to sandbox paths", func(t *testing.T) {
+		manifest := sandbox.SandboxClaudeDir + "/plugins/installed_plugins.json"
+		out, err := testDocker.SandboxExec(name, "cat", manifest)
+		if err != nil {
+			t.Skipf("no installed_plugins.json: %v", err)
+		}
+		if strings.Contains(out, os.Getenv("HOME")) {
+			t.Errorf("installed_plugins.json still contains host path %s", os.Getenv("HOME"))
+		}
+		if !strings.Contains(out, sandbox.SandboxClaudeDir) {
+			t.Errorf("installed_plugins.json should contain sandbox path %s", sandbox.SandboxClaudeDir)
 		}
 	})
 
