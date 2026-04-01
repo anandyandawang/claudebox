@@ -87,7 +87,7 @@ This means plugins are read-only from the sandbox's perspective — the host is 
 
 ### What changes
 
-- No more symlinks for Claude config (files are copied, not symlinked)
+- Config files are copied into the sandbox, not mounted (one convenience symlink remains: `.claude.json` is symlinked from `~/.claude/` to `~/` inside the sandbox, since Claude expects it at `~/.claude.json`)
 - Plugin/settings changes inside the sandbox don't persist to the host
 - New plugins installed on the host are picked up on resume
 

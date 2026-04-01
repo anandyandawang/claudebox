@@ -66,17 +66,12 @@ func (m *Manager) Create(sandboxName string, opts CreateOpts) error {
 	}
 	os.RemoveAll(tmpDir)
 
-	// Tar-pipe workspace into sandbox
-	if err := m.tarPipeTo(sandboxName, []string{"-C", opts.Workspace, "-c", "."}, "/home/agent/workspace/"); err != nil {
+	if err := m.tarPipeTo(sandboxName, opts.Workspace, "/home/agent/workspace/"); err != nil {
 		return fmt.Errorf("copying workspace: %w", err)
 	}
-
-	// Tar-pipe Claude config files into sandbox
 	if err := m.tarPipeClaudeConfig(sandboxName, opts.ClaudeDir); err != nil {
 		return fmt.Errorf("copying claude config: %w", err)
 	}
-
-	// Clean and create branch in workspace copy
 	if _, err := m.docker.SandboxExec(sandboxName, "git", "-C", "/home/agent/workspace", "clean", "-fdx", "-q"); err != nil {
 		return fmt.Errorf("cleaning workspace: %w", err)
 	}
@@ -86,9 +81,13 @@ func (m *Manager) Create(sandboxName string, opts CreateOpts) error {
 	return nil
 }
 
-// tarPipeTo tars files from the host and pipes them into the sandbox at destDir.
-// tarArgs are passed directly to the host tar command (e.g. "-C", srcDir, "-c", ".").
-func (m *Manager) tarPipeTo(sandboxName string, tarArgs []string, destDir string) error {
+// tarPipeTo tars srcDir on the host and extracts into destDir in the sandbox.
+// If paths are provided, only those entries are tarred; otherwise the entire directory.
+func (m *Manager) tarPipeTo(sandboxName, srcDir, destDir string, paths ...string) error {
+	if len(paths) == 0 {
+		paths = []string{"."}
+	}
+	tarArgs := append([]string{"-C", srcDir, "-c"}, paths...)
 	tarCmd := exec.Command("tar", tarArgs...)
 	pr, pw, err := os.Pipe()
 	if err != nil {
@@ -112,61 +111,60 @@ func (m *Manager) tarPipeTo(sandboxName string, tarArgs []string, destDir string
 	return extractErr
 }
 
-// tarPipeClaudeConfig copies .claude.json, settings.json, and plugins/ into the sandbox.
-func (m *Manager) tarPipeClaudeConfig(sandboxName, claudeDir string) error {
-	// Build tar args for only the files that exist
+// collectConfigFiles returns the subset of candidates that exist under dir.
+// Directories are only included if they are actually directories.
+func collectConfigFiles(dir string, candidates []string) []string {
 	var files []string
-	for _, f := range []string{".claude.json", "settings.json"} {
-		if _, err := os.Stat(filepath.Join(claudeDir, f)); err == nil {
+	for _, f := range candidates {
+		info, err := os.Stat(filepath.Join(dir, f))
+		if err != nil {
+			continue
+		}
+		if info.IsDir() || !info.IsDir() {
 			files = append(files, f)
 		}
 	}
-	if info, err := os.Stat(filepath.Join(claudeDir, "plugins")); err == nil && info.IsDir() {
-		files = append(files, "plugins")
-	}
+	return files
+}
+
+// tarPipeClaudeConfig copies .claude.json, settings.json, and plugins/ into the sandbox.
+func (m *Manager) tarPipeClaudeConfig(sandboxName, claudeDir string) error {
+	files := collectConfigFiles(claudeDir, []string{".claude.json", "settings.json", "plugins"})
 	if len(files) == 0 {
 		return nil
 	}
 
-	// Ensure target dirs exist
 	if _, err := m.docker.SandboxExec(sandboxName, "mkdir", "-p", "/home/agent/.claude"); err != nil {
 		return fmt.Errorf("creating .claude dir: %w", err)
 	}
-
-	if err := m.tarPipeTo(sandboxName, append([]string{"-C", claudeDir, "-c"}, files...), "/home/agent/.claude"); err != nil {
+	if err := m.tarPipeTo(sandboxName, claudeDir, "/home/agent/.claude", files...); err != nil {
 		return err
 	}
 
-	// Symlink .claude.json to home dir (Claude expects it at ~/.claude.json)
-	if _, err := m.docker.SandboxExec(sandboxName, "ln", "-sf", "/home/agent/.claude/.claude.json", "/home/agent/.claude.json"); err != nil {
-		return fmt.Errorf("symlinking .claude.json: %w", err)
+	// Symlink .claude.json to home dir only if the file was actually copied
+	for _, f := range files {
+		if f == ".claude.json" {
+			if _, err := m.docker.SandboxExec(sandboxName, "ln", "-sf", "/home/agent/.claude/.claude.json", "/home/agent/.claude.json"); err != nil {
+				return fmt.Errorf("symlinking .claude.json: %w", err)
+			}
+			break
+		}
 	}
-
 	return nil
 }
 
 // RefreshConfig re-copies settings.json and plugins/ from the host into the sandbox.
 // Called on resume to pick up any host-side changes.
 func (m *Manager) RefreshConfig(sandboxName, claudeDir string) error {
-	var files []string
-	for _, f := range []string{"settings.json"} {
-		if _, err := os.Stat(filepath.Join(claudeDir, f)); err == nil {
-			files = append(files, f)
-		}
-	}
-	if info, err := os.Stat(filepath.Join(claudeDir, "plugins")); err == nil && info.IsDir() {
-		files = append(files, "plugins")
-	}
+	files := collectConfigFiles(claudeDir, []string{"settings.json", "plugins"})
 	if len(files) == 0 {
 		return nil
 	}
 
-	// Ensure target dir exists (may have been removed inside sandbox)
 	if _, err := m.docker.SandboxExec(sandboxName, "mkdir", "-p", "/home/agent/.claude"); err != nil {
 		return fmt.Errorf("creating .claude dir: %w", err)
 	}
-
-	return m.tarPipeTo(sandboxName, append([]string{"-C", claudeDir, "-c"}, files...), "/home/agent/.claude")
+	return m.tarPipeTo(sandboxName, claudeDir, "/home/agent/.claude", files...)
 }
 
 // ApplyNetworkPolicy reads allowed-hosts.txt and applies deny-by-default network policy.
