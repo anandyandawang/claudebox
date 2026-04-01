@@ -79,7 +79,7 @@ If no `allowed-hosts.txt` is present, the sandbox has unrestricted network acces
 ## How it works
 
 1. Builds a Docker image from the template's `Dockerfile`.
-2. Creates a named sandbox with a temporary workspace directory, then immediately deletes it on the host — the mount becomes a dead end that prevents the sandbox from writing back to the host filesystem.
+2. Creates a named sandbox with an empty temporary directory as the workspace mount — the real workspace files are streamed in separately, so the mount never contains sensitive data.
 3. Tar-pipes the repo into `/home/agent/workspace/` and Claude config files (`.claude.json`, `settings.json`, `plugins/`) into `/home/agent/.claude/` via `docker sandbox exec -i`.
 4. Creates a session branch in the workspace copy.
 5. Wraps the `claude` binary so Claude Code's project directory is the local copy — all tools (Edit, Read, Glob, Bash) operate on the same files.
@@ -92,7 +92,7 @@ Each run creates a new sandbox with a fully local copy of the repo on its own br
 
 The sandbox has no writable mounts back to the host filesystem:
 
-- **Dead temp dir mount** — the required VirtioFS workspace mount points at a host directory that was deleted immediately after `docker sandbox create`. Writes inside the sandbox stay in the sandbox overlay and never reach the host.
+- **Empty temp dir mount** — the required VirtioFS workspace mount points at an empty host temp directory, not the real workspace. Writes inside the sandbox go to this empty dir, never to the real workspace.
 - **Tar-pipe file transfer** — workspace files and Claude config are streamed into the sandbox via `tar | docker sandbox exec -i`, not mounted. Changes inside the sandbox are sandbox-local.
 - **No host Docker access** — the sandbox runs inside a Docker Desktop VM with its own Docker daemon. Inner containers cannot mount host paths or communicate with the host Docker daemon.
 

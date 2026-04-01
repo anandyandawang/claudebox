@@ -151,9 +151,12 @@ func TestCreate(t *testing.T) {
 	if createWorkspace == workspace || createWorkspace == claudeDir {
 		t.Errorf("SandboxCreate should use a temp dir, not %q", createWorkspace)
 	}
-	// Temp dir should have been deleted (dead mount property)
-	if _, err := os.Stat(createWorkspace); !os.IsNotExist(err) {
-		t.Errorf("temp dir %q should have been deleted after Create", createWorkspace)
+	// Temp dir should still exist (needed for sandbox cwd) but be empty
+	entries, err := os.ReadDir(createWorkspace)
+	if err != nil {
+		t.Errorf("temp dir %q should still exist: %v", createWorkspace, err)
+	} else if len(entries) != 0 {
+		t.Errorf("temp dir should be empty, got %d entries", len(entries))
 	}
 
 	// Should have SandboxExecWithStdin calls for tar-pipe (workspace + claude config)

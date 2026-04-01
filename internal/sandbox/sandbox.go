@@ -56,8 +56,10 @@ func (m *Manager) BuildImage(template string) (string, error) {
 
 // Create creates a sandbox with tar-piped workspace and config, no host mounts.
 func (m *Manager) Create(sandboxName string, opts CreateOpts) error {
-	// Create and immediately delete a temp dir for the required workspace arg.
-	// After deletion, the virtiofs mount inside the sandbox becomes a dead end.
+	// Use an empty temp dir as the required workspace arg instead of the real
+	// workspace. The sandbox gets its files via tar-pipe, not from this mount.
+	// The dir stays empty on the host — sandbox writes go to the VirtioFS overlay
+	// but never contain real workspace data. Cleaned up on sandbox removal.
 	tmpDir, err := os.MkdirTemp("", "claudebox-")
 	if err != nil {
 		return fmt.Errorf("creating temp dir: %w", err)
@@ -70,7 +72,6 @@ func (m *Manager) Create(sandboxName string, opts CreateOpts) error {
 		os.RemoveAll(tmpDir)
 		return fmt.Errorf("creating sandbox: %w", err)
 	}
-	os.RemoveAll(tmpDir)
 
 	if err := m.tarPipeTo(sandboxName, opts.Workspace, SandboxWorkspace); err != nil {
 		return fmt.Errorf("copying workspace: %w", err)

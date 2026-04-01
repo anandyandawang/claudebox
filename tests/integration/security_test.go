@@ -55,33 +55,34 @@ func TestSecuritySuite(t *testing.T) {
 		})
 	})
 
-	t.Run("DeadMountEscapeAttempts", func(t *testing.T) {
-		deadMount := findDeadMount(t, name)
-		if deadMount == "" {
+	t.Run("MountIsolation", func(t *testing.T) {
+		emptyMount := findDeadMount(t, name)
+		if emptyMount == "" {
 			t.Fatal("no virtiofs mount with claudebox- prefix found")
 		}
 
-		t.Run("write to dead mount fails", func(t *testing.T) {
-			_, err := testDocker.SandboxExec(name, "touch", deadMount+"/escape-test")
-			if err == nil {
-				t.Error("should not be able to write to dead mount")
+		t.Run("host mount dir is empty", func(t *testing.T) {
+			entries, err := os.ReadDir(emptyMount)
+			if err != nil {
+				t.Fatalf("reading mount dir: %v", err)
+			}
+			if len(entries) != 0 {
+				t.Errorf("mount dir should be empty on host, got %d entries", len(entries))
 			}
 		})
 
-		t.Run("mkdir in dead mount does not propagate to host", func(t *testing.T) {
-			testDocker.SandboxExec(name, "mkdir", "-p", deadMount+"/escape-dir")
-			if _, err := os.Stat(deadMount); err == nil {
-				if _, err := os.Stat(filepath.Join(deadMount, "escape-dir")); err == nil {
-					t.Error("sandbox mkdir propagated to host filesystem")
-				}
+		t.Run("sandbox writes do not propagate to host", func(t *testing.T) {
+			testDocker.SandboxExec(name, "mkdir", "-p", emptyMount+"/escape-dir")
+			testDocker.SandboxExec(name, "touch", emptyMount+"/escape-dir/escape-file")
+			if _, err := os.Stat(filepath.Join(emptyMount, "escape-dir")); err == nil {
+				t.Error("sandbox mkdir propagated to host filesystem")
 			}
 		})
 
-		t.Run("write to re-created dir does not propagate to host", func(t *testing.T) {
-			testDocker.SandboxExec(name, "mkdir", "-p", deadMount+"/write-test-dir")
-			testDocker.SandboxExec(name, "touch", deadMount+"/write-test-dir/escape-file")
-			if _, err := os.Stat(filepath.Join(deadMount, "write-test-dir", "escape-file")); err == nil {
-				t.Error("file written to re-created dir propagated to host")
+		t.Run("sandbox file writes do not appear on host", func(t *testing.T) {
+			testDocker.SandboxExec(name, "sh", "-c", "echo secret > "+emptyMount+"/leak.txt 2>/dev/null || true")
+			if _, err := os.Stat(filepath.Join(emptyMount, "leak.txt")); err == nil {
+				t.Error("sandbox file write propagated to host")
 			}
 		})
 	})

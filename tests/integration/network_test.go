@@ -55,8 +55,10 @@ func TestNoNetworkPolicyAllowsAll(t *testing.T) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("create failed: %s", out)
 	}
-	os.RemoveAll(mountDir)
-	defer func() { exec.Command("docker", "sandbox", "rm", name).Run() }()
+	defer func() {
+		exec.Command("docker", "sandbox", "rm", name).Run()
+		os.RemoveAll(mountDir)
+	}()
 
 	// Tar-pipe workspace in
 	tarPipe := exec.Command("sh", "-c",
