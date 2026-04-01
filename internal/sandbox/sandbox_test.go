@@ -142,7 +142,7 @@ func TestCreate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// First call: SandboxCreate with a temp dir workspace
+	// First call: SandboxCreate with the empty mount dir
 	if m.calls[0].method != "SandboxCreate" {
 		t.Fatalf("call[0]: got %s, want SandboxCreate", m.calls[0].method)
 	}

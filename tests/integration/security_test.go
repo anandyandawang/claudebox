@@ -154,15 +154,15 @@ func TestSecuritySuite(t *testing.T) {
 			}
 		})
 
-		t.Run("inner docker can't write to dead mount on host", func(t *testing.T) {
-			deadMount := findEmptyMount(t, name)
-			if deadMount == "" {
+		t.Run("inner docker can't write to empty mount on host", func(t *testing.T) {
+			emptyMount := findEmptyMount(t, name)
+			if emptyMount == "" {
 				t.Skip("no .claudebox virtiofs mount found")
 			}
 			testDocker.SandboxExec(name,
-				"sh", "-c", "docker run --rm -v "+deadMount+":/repo alpine touch /repo/docker-escape-test 2>&1 || true")
-			if _, err := os.Stat(filepath.Join(deadMount, "docker-escape-test")); err == nil {
-				t.Error("inner docker write to dead mount propagated to host")
+				"sh", "-c", "docker run --rm -v "+emptyMount+":/repo alpine touch /repo/docker-escape-test 2>&1 || true")
+			if _, err := os.Stat(filepath.Join(emptyMount, "docker-escape-test")); err == nil {
+				t.Error("inner docker write to empty mount propagated to host")
 			}
 		})
 

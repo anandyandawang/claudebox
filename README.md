@@ -92,7 +92,7 @@ Each run creates a new sandbox with a fully local copy of the repo on its own br
 
 The sandbox has no writable mounts back to the host filesystem:
 
-- **Empty temp dir mount** — the required VirtioFS workspace mount points at an empty host temp directory, not the real workspace. Writes inside the sandbox go to this empty dir, never to the real workspace.
+- **Empty read-only mount** — the required VirtioFS workspace mount points at `~/.claudebox/mount/`, a shared empty directory that is `chmod 555` after sandbox creation. The sandbox cannot write files back to the host through this mount.
 - **Tar-pipe file transfer** — workspace files and Claude config are streamed into the sandbox via `tar | docker sandbox exec -i`, not mounted. Changes inside the sandbox are sandbox-local.
 - **No host Docker access** — the sandbox runs inside a Docker Desktop VM with its own Docker daemon. Inner containers cannot mount host paths or communicate with the host Docker daemon.
 
@@ -120,4 +120,4 @@ Prerequisites: Go 1.21+ and Docker Desktop with sandbox support (for integration
 | Unit tests | `internal/*/` | Docker client, sandbox lifecycle, create/resume commands, credentials, environment setup |
 | Integration: filesystem | `tests/integration/filesystem_test.go` | Workspace layout, git branch, config symlinks, claude wrapper |
 | Integration: network | `tests/integration/network_test.go` | Deny-by-default firewall, allowed hosts, no-policy fallback |
-| Integration: security | `tests/integration/security_test.go` | Host isolation, dead mount escapes, Docker daemon isolation, escape attempts |
+| Integration: security | `tests/integration/security_test.go` | Mount isolation, chmod bypass attempts, Docker daemon isolation, escape attempts |

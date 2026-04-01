@@ -23,7 +23,7 @@ type Docker interface {
 type SandboxCreateOpts struct {
 	Image     string // Docker image tag
 	Command   string // Base command (e.g. "claude")
-	Workspace string // Primary workspace path (temp dir, deleted after creation)
+	Workspace string // Primary workspace path (empty mount dir, chmod 555 after creation)
 }
 
 // SandboxInfo represents a sandbox from docker sandbox ls.
