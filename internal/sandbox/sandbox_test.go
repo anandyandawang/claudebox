@@ -146,17 +146,13 @@ func TestCreate(t *testing.T) {
 	if m.calls[0].method != "SandboxCreate" {
 		t.Fatalf("call[0]: got %s, want SandboxCreate", m.calls[0].method)
 	}
-	// Workspace arg should NOT be the real workspace or claude dir
+	// Workspace arg should be the shared mount dir, not the real workspace
 	createWorkspace := m.calls[0].args[3]
 	if createWorkspace == workspace || createWorkspace == claudeDir {
-		t.Errorf("SandboxCreate should use a temp dir, not %q", createWorkspace)
+		t.Errorf("SandboxCreate should use mount dir, not %q", createWorkspace)
 	}
-	// Temp dir should still exist (needed for sandbox cwd) but be empty
-	entries, err := os.ReadDir(createWorkspace)
-	if err != nil {
-		t.Errorf("temp dir %q should still exist: %v", createWorkspace, err)
-	} else if len(entries) != 0 {
-		t.Errorf("temp dir should be empty, got %d entries", len(entries))
+	if !strings.Contains(createWorkspace, ".claudebox") {
+		t.Errorf("SandboxCreate workspace should be under ~/.claudebox, got %q", createWorkspace)
 	}
 
 	// Should have SandboxExecWithStdin calls for tar-pipe (workspace + claude config)

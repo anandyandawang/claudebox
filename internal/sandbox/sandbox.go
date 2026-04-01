@@ -56,20 +56,19 @@ func (m *Manager) BuildImage(template string) (string, error) {
 
 // Create creates a sandbox with tar-piped workspace and config, no host mounts.
 func (m *Manager) Create(sandboxName string, opts CreateOpts) error {
-	// Use an empty temp dir as the required workspace arg instead of the real
-	// workspace. The sandbox gets its files via tar-pipe, not from this mount.
-	// The dir stays empty on the host — sandbox writes go to the VirtioFS overlay
-	// but never contain real workspace data. Cleaned up on sandbox removal.
-	tmpDir, err := os.MkdirTemp("", "claudebox-")
-	if err != nil {
-		return fmt.Errorf("creating temp dir: %w", err)
+	// Mount a shared empty dir instead of the real workspace. The sandbox
+	// gets its files via tar-pipe. VirtioFS writes go to this empty dir,
+	// never to the real workspace. ~/.claudebox/mount is durable (survives
+	// reboots, unlike /tmp) and shared across all sandboxes.
+	mountDir := filepath.Join(os.Getenv("HOME"), ".claudebox", "mount")
+	if err := os.MkdirAll(mountDir, 0o755); err != nil {
+		return fmt.Errorf("creating mount dir: %w", err)
 	}
 	if err := m.docker.SandboxCreate(sandboxName, docker.SandboxCreateOpts{
 		Image:     opts.ImageName,
 		Command:   "claude",
-		Workspace: tmpDir,
+		Workspace: mountDir,
 	}); err != nil {
-		os.RemoveAll(tmpDir)
 		return fmt.Errorf("creating sandbox: %w", err)
 	}
 

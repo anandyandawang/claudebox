@@ -11,15 +11,15 @@ import (
 	"testing"
 )
 
-// findDeadMount returns the virtiofs mount path containing "claudebox-" (the deleted temp dir).
-func findDeadMount(t *testing.T, name string) string {
+// findEmptyMount returns the virtiofs mount path containing ".claudebox" (the shared empty mount dir).
+func findEmptyMount(t *testing.T, name string) string {
 	t.Helper()
 	out, err := testDocker.SandboxExec(name, "findmnt", "-t", "virtiofs", "-n", "-o", "TARGET")
 	if err != nil {
 		t.Fatalf("findmnt failed: %v", err)
 	}
 	for _, p := range strings.Fields(out) {
-		if strings.Contains(p, "claudebox-") {
+		if strings.Contains(p, ".claudebox") {
 			return p
 		}
 	}
@@ -56,9 +56,9 @@ func TestSecuritySuite(t *testing.T) {
 	})
 
 	t.Run("MountIsolation", func(t *testing.T) {
-		emptyMount := findDeadMount(t, name)
+		emptyMount := findEmptyMount(t, name)
 		if emptyMount == "" {
-			t.Fatal("no virtiofs mount with claudebox- prefix found")
+			t.Fatal("no virtiofs mount with .claudebox found")
 		}
 
 		t.Run("host mount dir is empty", func(t *testing.T) {
@@ -125,9 +125,9 @@ func TestSecuritySuite(t *testing.T) {
 		})
 
 		t.Run("inner docker can't write to dead mount on host", func(t *testing.T) {
-			deadMount := findDeadMount(t, name)
+			deadMount := findEmptyMount(t, name)
 			if deadMount == "" {
-				t.Skip("no claudebox- virtiofs mount found")
+				t.Skip("no .claudebox virtiofs mount found")
 			}
 			testDocker.SandboxExec(name,
 				"sh", "-c", "docker run --rm -v "+deadMount+":/repo alpine touch /repo/docker-escape-test 2>&1 || true")
