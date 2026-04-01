@@ -184,16 +184,26 @@ func TestCreate(t *testing.T) {
 		t.Errorf("expected at least 2 SandboxExecWithStdin calls (workspace + config), got %d", len(stdinCalls))
 	}
 
-	// Should have SandboxExec call for git clean + checkout
-	var gitCall *call
+	// Should have separate SandboxExec calls for git clean and git checkout
+	// (split to avoid shell injection via SessionID)
+	var hasClean, hasCheckout bool
 	for _, c := range m.calls {
-		if c.method == "SandboxExec" && strings.Contains(strings.Join(c.args, " "), "git clean") {
-			gitCall = &c
-			break
+		if c.method != "SandboxExec" {
+			continue
+		}
+		joined := strings.Join(c.args, " ")
+		if strings.Contains(joined, "clean") {
+			hasClean = true
+		}
+		if strings.Contains(joined, "checkout") {
+			hasCheckout = true
 		}
 	}
-	if gitCall == nil {
+	if !hasClean {
 		t.Error("expected SandboxExec call with git clean")
+	}
+	if !hasCheckout {
+		t.Error("expected SandboxExec call with git checkout")
 	}
 }
 

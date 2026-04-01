@@ -84,11 +84,11 @@ func (m *Manager) Create(sandboxName string, opts CreateOpts) error {
 	if err := m.tarPipeClaudeConfig(sandboxName, opts.ClaudeDir); err != nil {
 		return fmt.Errorf("copying claude config: %w", err)
 	}
-	script := fmt.Sprintf(
-		"cd %s && git clean -fdx -q && git checkout -b %s",
-		SandboxWorkspace, opts.SessionID)
-	if _, err := m.docker.SandboxExec(sandboxName, "sh", "-c", script); err != nil {
-		return fmt.Errorf("setting up workspace: %w", err)
+	if _, err := m.docker.SandboxExec(sandboxName, "git", "-C", SandboxWorkspace, "clean", "-fdx", "-q"); err != nil {
+		return fmt.Errorf("cleaning workspace: %w", err)
+	}
+	if _, err := m.docker.SandboxExec(sandboxName, "git", "-C", SandboxWorkspace, "checkout", "-b", opts.SessionID); err != nil {
+		return fmt.Errorf("creating session branch: %w", err)
 	}
 	return nil
 }
@@ -125,8 +125,9 @@ func (m *Manager) tarPipeTo(sandboxName, srcDir, destDir string, paths ...string
 		}
 		return extractErr
 	}
-	// If extraction succeeded but tar exited non-zero (e.g. SIGPIPE from early
-	// pipe close), the data was fully consumed — treat as success.
+	if waitErr != nil {
+		fmt.Fprintf(os.Stderr, "warning: tar create exited with %v after successful extraction\n", waitErr)
+	}
 	return nil
 }
 

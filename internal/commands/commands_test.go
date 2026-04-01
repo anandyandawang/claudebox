@@ -541,6 +541,14 @@ func setupResumeTest(t *testing.T, md *mockDocker) {
 func TestResumeRefreshConfigFailure(t *testing.T) {
 	// RefreshConfig calls SandboxExec (mkdir) then SandboxExecWithStdin (tar-pipe).
 	// If SandboxExec fails, RefreshConfig returns an error.
+	// Set up a fake HOME with a settings.json so collectConfigFiles finds files
+	// and RefreshConfig actually reaches the exec call (not the early-return).
+	tmpHome := t.TempDir()
+	claudeDir := filepath.Join(tmpHome, ".claude")
+	os.MkdirAll(claudeDir, 0o755)
+	os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte("{}"), 0o644)
+	t.Setenv("HOME", tmpHome)
+
 	md := &mockDocker{failExec: true}
 	setupResumeTest(t, md)
 
