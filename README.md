@@ -88,6 +88,14 @@ If no `allowed-hosts.txt` is present, the sandbox has unrestricted network acces
 
 Each run creates a new sandbox with a fully local copy of the repo on its own branch, so multiple sessions can work independently in parallel. On resume, settings and plugins are re-synced from the host.
 
+### Host isolation
+
+The sandbox has no writable mounts back to the host filesystem:
+
+- **Dead temp dir mount** — the required VirtioFS workspace mount points at a host directory that was deleted immediately after `docker sandbox create`. Writes inside the sandbox stay in the sandbox overlay and never reach the host.
+- **Tar-pipe file transfer** — workspace files and Claude config are streamed into the sandbox via `tar | docker sandbox exec -i`, not mounted. Changes inside the sandbox are sandbox-local.
+- **No host Docker access** — the sandbox runs inside a Docker Desktop VM with its own Docker daemon. Inner containers cannot mount host paths or communicate with the host Docker daemon.
+
 ## Development
 
 ### Running tests
@@ -96,11 +104,20 @@ Each run creates a new sandbox with a fully local copy of the repo on its own br
 # Unit tests
 make test
 
-# Integration tests (requires Docker)
+# Integration tests (requires Docker Desktop with sandbox support)
 make test-integration
 
 # Both
 make test-all
 ```
 
-Prerequisites: Go 1.21+ and Docker (for integration tests).
+Prerequisites: Go 1.21+ and Docker Desktop with sandbox support (for integration tests).
+
+### Test structure
+
+| Suite | Location | What it covers |
+|-------|----------|---------------|
+| Unit tests | `internal/*/` | Docker client, sandbox lifecycle, create/resume commands, credentials, environment setup |
+| Integration: filesystem | `tests/integration/filesystem_test.go` | Workspace layout, git branch, config symlinks, claude wrapper |
+| Integration: network | `tests/integration/network_test.go` | Deny-by-default firewall, allowed hosts, no-policy fallback |
+| Integration: security | `tests/integration/security_test.go` | Host isolation, dead mount escapes, Docker daemon isolation, escape attempts |
