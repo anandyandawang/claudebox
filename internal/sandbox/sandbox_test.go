@@ -226,6 +226,92 @@ func TestCreateFailsOnSandboxCreate(t *testing.T) {
 	}
 }
 
+func TestRewritePluginPaths(t *testing.T) {
+	m := &mockDocker{}
+	mgr := NewManager(m, "/templates")
+
+	err := mgr.rewritePluginPaths("test-sandbox", "/Users/testuser/.claude")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Should call SandboxExec with sed replacing /Users/testuser -> /home/agent
+	if len(m.calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(m.calls))
+	}
+	args := strings.Join(m.calls[0].args, " ")
+	if !strings.Contains(args, "sed") {
+		t.Errorf("expected sed command, got: %s", args)
+	}
+	if !strings.Contains(args, "/Users/testuser") {
+		t.Errorf("sed should reference host home dir, got: %s", args)
+	}
+	if !strings.Contains(args, SandboxHome) {
+		t.Errorf("sed should reference sandbox home dir, got: %s", args)
+	}
+	if !strings.Contains(args, SandboxClaudeDir+"/plugins/installed_plugins.json") {
+		t.Errorf("sed should target plugin manifest, got: %s", args)
+	}
+}
+
+func TestCreateCallsRewritePluginPaths(t *testing.T) {
+	m := &mockDocker{}
+	mgr := NewManager(m, "/templates")
+
+	workspace := t.TempDir()
+	os.WriteFile(filepath.Join(workspace, "main.go"), []byte("package main"), 0o644)
+	claudeDir := t.TempDir()
+	os.MkdirAll(filepath.Join(claudeDir, "plugins"), 0o755)
+	os.WriteFile(filepath.Join(claudeDir, "plugins", "installed_plugins.json"), []byte(`{}`), 0o644)
+
+	err := mgr.Create("test-sandbox", CreateOpts{
+		ImageName: "jvm-sandbox",
+		Workspace: workspace,
+		ClaudeDir: claudeDir,
+		SessionID: "sandbox-20260325-120000",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify a SandboxExec call with sed was made for plugin path rewriting
+	var hasSed bool
+	for _, c := range m.calls {
+		if c.method == "SandboxExec" && strings.Contains(strings.Join(c.args, " "), "sed") {
+			hasSed = true
+			break
+		}
+	}
+	if !hasSed {
+		t.Error("expected SandboxExec call with sed for plugin path rewriting")
+	}
+}
+
+func TestRefreshConfigCallsRewritePluginPaths(t *testing.T) {
+	m := &mockDocker{}
+	mgr := NewManager(m, "/templates")
+
+	claudeDir := t.TempDir()
+	os.MkdirAll(filepath.Join(claudeDir, "plugins"), 0o755)
+	os.WriteFile(filepath.Join(claudeDir, "plugins", "installed_plugins.json"), []byte(`{}`), 0o644)
+
+	err := mgr.RefreshConfig("test-sandbox", claudeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var hasSed bool
+	for _, c := range m.calls {
+		if c.method == "SandboxExec" && strings.Contains(strings.Join(c.args, " "), "sed") {
+			hasSed = true
+			break
+		}
+	}
+	if !hasSed {
+		t.Error("expected SandboxExec call with sed for plugin path rewriting on refresh")
+	}
+}
+
 func TestCreateFailsOnGitSetup(t *testing.T) {
 	m := &mockDocker{failOn: "SandboxExec"}
 	mgr := NewManager(m, "/templates")
