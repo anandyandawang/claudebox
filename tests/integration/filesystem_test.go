@@ -4,6 +4,7 @@ package integration
 
 import (
 	"claudebox/internal/sandbox"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -45,6 +46,17 @@ func TestFilesystemLayout(t *testing.T) {
 		}
 		if !strings.Contains(out, "cd /home/agent/workspace") {
 			t.Errorf("claude wrapper should contain cd: got %s", out)
+		}
+	})
+
+	t.Run("sandbox run starts without cwd error", func(t *testing.T) {
+		// Verifies the OCI runtime can chdir into the workspace mount.
+		// This catches the deleted-temp-dir bug where docker sandbox run
+		// fails with "no such file or directory" before any command runs.
+		cmd := exec.Command("docker", "sandbox", "run", name, "--", "--version")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Errorf("sandbox run failed (cwd likely invalid): %s", out)
 		}
 	})
 }
