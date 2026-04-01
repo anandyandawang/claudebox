@@ -86,7 +86,15 @@ func (m *mockDocker) SandboxNetworkProxy(name string, hosts []string) error {
 	return nil
 }
 
-// --- Tests ---
+func assertHasSedCall(t *testing.T, calls []call) {
+	t.Helper()
+	for _, c := range calls {
+		if c.method == "SandboxExec" && strings.Contains(strings.Join(c.args, " "), "sed") {
+			return
+		}
+	}
+	t.Error("expected SandboxExec call with sed for host path rewriting")
+}
 
 func TestValidateTemplate(t *testing.T) {
 	dir := t.TempDir()
@@ -151,7 +159,7 @@ func TestCreate(t *testing.T) {
 	if createWorkspace == workspace || createWorkspace == claudeDir {
 		t.Errorf("SandboxCreate should use mount dir, not %q", createWorkspace)
 	}
-	if !strings.Contains(createWorkspace, ".claudebox") {
+	if !strings.Contains(createWorkspace, claudeboxDir) {
 		t.Errorf("SandboxCreate workspace should be under ~/.claudebox, got %q", createWorkspace)
 	}
 	// Mount dir should be chmod 555 (readable for cwd, not writable)
@@ -255,8 +263,8 @@ func TestRewriteHostPaths(t *testing.T) {
 	if !strings.Contains(args, SandboxHome) {
 		t.Errorf("sed should reference sandbox home dir, got: %s", args)
 	}
-	if !strings.Contains(args, SandboxClaudeDir) {
-		t.Errorf("sed should target claude dir, got: %s", args)
+	if !strings.Contains(args, SandboxClaudeDir+"/") {
+		t.Errorf("sed should target files under claude dir, got: %s", args)
 	}
 }
 
@@ -280,17 +288,7 @@ func TestCreateCallsRewriteHostPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Verify a SandboxExec call with sed was made for plugin path rewriting
-	var hasSed bool
-	for _, c := range m.calls {
-		if c.method == "SandboxExec" && strings.Contains(strings.Join(c.args, " "), "sed") {
-			hasSed = true
-			break
-		}
-	}
-	if !hasSed {
-		t.Error("expected SandboxExec call with sed for plugin path rewriting")
-	}
+	assertHasSedCall(t, m.calls)
 }
 
 func TestRefreshConfigCallsRewriteHostPaths(t *testing.T) {
@@ -306,16 +304,7 @@ func TestRefreshConfigCallsRewriteHostPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var hasSed bool
-	for _, c := range m.calls {
-		if c.method == "SandboxExec" && strings.Contains(strings.Join(c.args, " "), "sed") {
-			hasSed = true
-			break
-		}
-	}
-	if !hasSed {
-		t.Error("expected SandboxExec call with sed for plugin path rewriting on refresh")
-	}
+	assertHasSedCall(t, m.calls)
 }
 
 func TestCreateFailsOnGitSetup(t *testing.T) {

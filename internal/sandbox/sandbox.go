@@ -15,6 +15,8 @@ const (
 	SandboxHome      = "/home/agent"
 	SandboxWorkspace = SandboxHome + "/workspace"
 	SandboxClaudeDir = SandboxHome + "/.claude"
+	claudeboxDir     = ".claudebox"
+	mountSubdir      = "mount"
 )
 
 // Manager handles sandbox lifecycle operations.
@@ -60,7 +62,7 @@ func (m *Manager) Create(sandboxName string, opts CreateOpts) error {
 	// gets its files via tar-pipe. VirtioFS writes go to this empty dir,
 	// never to the real workspace. ~/.claudebox/mount is durable (survives
 	// reboots, unlike /tmp) and shared across all sandboxes.
-	mountDir := filepath.Join(os.Getenv("HOME"), ".claudebox", "mount")
+	mountDir := filepath.Join(os.Getenv("HOME"), claudeboxDir, mountSubdir)
 	if err := os.MkdirAll(mountDir, 0o755); err != nil {
 		return fmt.Errorf("creating mount dir: %w", err)
 	}
@@ -72,8 +74,9 @@ func (m *Manager) Create(sandboxName string, opts CreateOpts) error {
 		return fmt.Errorf("creating sandbox: %w", err)
 	}
 	// Lock down the mount dir so sandbox can't write back to host via VirtioFS.
-	// 555 = readable (for cwd) but not writable.
-	os.Chmod(mountDir, 0o555)
+	if err := os.Chmod(mountDir, 0o555); err != nil {
+		return fmt.Errorf("locking mount dir: %w", err)
+	}
 
 	if err := m.tarPipeTo(sandboxName, opts.Workspace, SandboxWorkspace); err != nil {
 		return fmt.Errorf("copying workspace: %w", err)
@@ -184,14 +187,19 @@ func (m *Manager) RefreshConfig(sandboxName, claudeDir string) error {
 }
 
 // rewriteHostPaths replaces host home dir references with sandbox home dir
-// across all JSON files copied into ~/.claude. This covers installed_plugins.json,
-// known_marketplaces.json, .claude.json, settings.json, and any other config
-// that may embed absolute host paths.
+// in the config files copied into ~/.claude.
 func (m *Manager) rewriteHostPaths(sandboxName, claudeDir string) error {
 	hostHome := filepath.Dir(claudeDir)
+	targets := []string{
+		SandboxClaudeDir + "/.claude.json",
+		SandboxClaudeDir + "/settings.json",
+		SandboxClaudeDir + "/plugins/installed_plugins.json",
+		SandboxClaudeDir + "/plugins/known_marketplaces.json",
+	}
+	// sed -i on missing files is a no-op with the leading true;
 	script := fmt.Sprintf(
-		`find %s -maxdepth 3 -name '*.json' -exec sed -i "s|%s|%s|g" {} +`,
-		SandboxClaudeDir, hostHome, SandboxHome)
+		`sed -i "s|%s|%s|g" %s 2>/dev/null; true`,
+		hostHome, SandboxHome, strings.Join(targets, " "))
 	_, err := m.docker.SandboxExec(sandboxName, "sh", "-c", script)
 	return err
 }
