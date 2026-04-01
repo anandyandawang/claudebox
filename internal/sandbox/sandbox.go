@@ -71,6 +71,9 @@ func (m *Manager) Create(sandboxName string, opts CreateOpts) error {
 	}); err != nil {
 		return fmt.Errorf("creating sandbox: %w", err)
 	}
+	// Lock down the mount dir so sandbox can't write back to host via VirtioFS.
+	// 555 = readable (for cwd) but not writable.
+	os.Chmod(mountDir, 0o555)
 
 	if err := m.tarPipeTo(sandboxName, opts.Workspace, SandboxWorkspace); err != nil {
 		return fmt.Errorf("copying workspace: %w", err)
