@@ -3,6 +3,7 @@
 package integration
 
 import (
+	"claudebox/internal/sandbox"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -40,14 +41,14 @@ func TestSecuritySuite(t *testing.T) {
 		})
 
 		t.Run("workspace copy has repo files", func(t *testing.T) {
-			_, err := testDocker.SandboxExec(name, "test", "-f", "/home/agent/workspace/testfile.txt")
+			_, err := testDocker.SandboxExec(name, "test", "-f", sandbox.SandboxWorkspace+"/testfile.txt")
 			if err != nil {
 				t.Error("testfile.txt should exist in workspace copy")
 			}
 		})
 
 		t.Run("workspace copy is writable", func(t *testing.T) {
-			_, err := testDocker.SandboxExec(name, "touch", "/home/agent/workspace/new-file")
+			_, err := testDocker.SandboxExec(name, "touch", sandbox.SandboxWorkspace+"/new-file")
 			if err != nil {
 				t.Errorf("should be able to write to workspace copy: %v", err)
 			}

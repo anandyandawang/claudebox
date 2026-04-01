@@ -3,6 +3,7 @@
 package integration
 
 import (
+	"claudebox/internal/sandbox"
 	"fmt"
 	"os"
 	"os/exec"
@@ -59,7 +60,7 @@ func TestNoNetworkPolicyAllowsAll(t *testing.T) {
 
 	// Tar-pipe workspace in
 	tarPipe := exec.Command("sh", "-c",
-		fmt.Sprintf("tar -C '%s' -c . | docker sandbox exec -i '%s' sh -c 'tar -C /home/agent/workspace -x'", workspace, name))
+		fmt.Sprintf("tar -C '%s' -c . | docker sandbox exec -i '%s' sh -c 'tar -C %s -x'", workspace, name, sandbox.SandboxWorkspace))
 	if out, err := tarPipe.CombinedOutput(); err != nil {
 		t.Fatalf("tar-pipe failed: %s", out)
 	}

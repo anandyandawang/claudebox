@@ -3,6 +3,7 @@
 package integration
 
 import (
+	"claudebox/internal/sandbox"
 	"strings"
 	"testing"
 )
@@ -14,14 +15,14 @@ func TestFilesystemLayout(t *testing.T) {
 	defer cleanupSandbox(t, name)
 
 	t.Run("workspace files exist", func(t *testing.T) {
-		_, err := testDocker.SandboxExec(name, "test", "-f", "/home/agent/workspace/testfile.txt")
+		_, err := testDocker.SandboxExec(name, "test", "-f", sandbox.SandboxWorkspace+"/testfile.txt")
 		if err != nil {
 			t.Error("testfile.txt should exist in workspace")
 		}
 	})
 
 	t.Run("git branch matches sandbox pattern", func(t *testing.T) {
-		branch, err := testDocker.SandboxExec(name, "git", "-C", "/home/agent/workspace", "branch", "--show-current")
+		branch, err := testDocker.SandboxExec(name, "git", "-C", sandbox.SandboxWorkspace, "branch", "--show-current")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -31,7 +32,7 @@ func TestFilesystemLayout(t *testing.T) {
 	})
 
 	t.Run("claude config symlinks exist", func(t *testing.T) {
-		_, err := testDocker.SandboxExec(name, "test", "-L", "/home/agent/.claude.json")
+		_, err := testDocker.SandboxExec(name, "test", "-L", sandbox.SandboxHome+"/.claude.json")
 		if err != nil {
 			t.Error(".claude.json symlink should exist")
 		}

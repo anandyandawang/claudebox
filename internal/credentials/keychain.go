@@ -2,6 +2,7 @@ package credentials
 
 import (
 	"claudebox/internal/docker"
+	"claudebox/internal/sandbox"
 	"encoding/base64"
 	"fmt"
 	"os"
@@ -33,8 +34,8 @@ func Refresh(d docker.Docker, sandboxName string) error {
 
 	encoded := base64.StdEncoding.EncodeToString([]byte(creds))
 	script := fmt.Sprintf(
-		"echo '%s' | tr -d '[:space:]' | base64 -d > /home/agent/.claude/.credentials.json && chmod 600 /home/agent/.claude/.credentials.json",
-		encoded)
+		"echo '%s' | tr -d '[:space:]' | base64 -d > %s/.credentials.json && chmod 600 %s/.credentials.json",
+		encoded, sandbox.SandboxClaudeDir, sandbox.SandboxClaudeDir)
 	_, err = d.SandboxExec(sandboxName, "sh", "-c", script)
 	return err
 }

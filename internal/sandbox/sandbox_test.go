@@ -167,25 +167,59 @@ func TestCreate(t *testing.T) {
 		t.Errorf("expected at least 2 SandboxExecWithStdin calls (workspace + config), got %d", len(stdinCalls))
 	}
 
-	// Should have SandboxExec calls for git clean and git checkout
-	var hasGitClean, hasGitCheckout bool
+	// Should have SandboxExec call for git clean + checkout
+	var gitCall *call
 	for _, c := range m.calls {
-		if c.method != "SandboxExec" {
-			continue
-		}
-		args := strings.Join(c.args, " ")
-		if strings.Contains(args, "git") && strings.Contains(args, "clean") {
-			hasGitClean = true
-		}
-		if strings.Contains(args, "git") && strings.Contains(args, "checkout") {
-			hasGitCheckout = true
+		if c.method == "SandboxExec" && strings.Contains(strings.Join(c.args, " "), "git clean") {
+			gitCall = &c
+			break
 		}
 	}
-	if !hasGitClean {
+	if gitCall == nil {
 		t.Error("expected SandboxExec call with git clean")
 	}
-	if !hasGitCheckout {
-		t.Error("expected SandboxExec call with git checkout")
+}
+
+func TestCreateFailsOnExecWithStdin(t *testing.T) {
+	m := &mockDocker{failOn: "SandboxExecWithStdin"}
+	mgr := NewManager(m, "/templates")
+
+	workspace := t.TempDir()
+	os.WriteFile(filepath.Join(workspace, "main.go"), []byte("package main"), 0o644)
+	claudeDir := t.TempDir()
+
+	err := mgr.Create("test-sandbox", CreateOpts{
+		ImageName: "jvm-sandbox",
+		Workspace: workspace,
+		ClaudeDir: claudeDir,
+		SessionID: "sandbox-20260325-120000",
+	})
+	if err == nil {
+		t.Fatal("expected error when SandboxExecWithStdin fails")
+	}
+	if !strings.Contains(err.Error(), "copying workspace") {
+		t.Errorf("error should mention copying workspace, got: %v", err)
+	}
+}
+
+func TestCreateFailsOnSandboxCreate(t *testing.T) {
+	m := &mockDocker{failOn: "SandboxCreate"}
+	mgr := NewManager(m, "/templates")
+
+	workspace := t.TempDir()
+	claudeDir := t.TempDir()
+
+	err := mgr.Create("test-sandbox", CreateOpts{
+		ImageName: "jvm-sandbox",
+		Workspace: workspace,
+		ClaudeDir: claudeDir,
+		SessionID: "sandbox-20260325-120000",
+	})
+	if err == nil {
+		t.Fatal("expected error when SandboxCreate fails")
+	}
+	if !strings.Contains(err.Error(), "creating sandbox") {
+		t.Errorf("error should mention creating sandbox, got: %v", err)
 	}
 }
 

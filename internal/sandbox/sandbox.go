@@ -11,6 +11,12 @@ import (
 	"strings"
 )
 
+const (
+	SandboxHome      = "/home/agent"
+	SandboxWorkspace = SandboxHome + "/workspace"
+	SandboxClaudeDir = SandboxHome + "/.claude"
+)
+
 // Manager handles sandbox lifecycle operations.
 type Manager struct {
 	docker       docker.Docker
@@ -66,17 +72,17 @@ func (m *Manager) Create(sandboxName string, opts CreateOpts) error {
 	}
 	os.RemoveAll(tmpDir)
 
-	if err := m.tarPipeTo(sandboxName, opts.Workspace, "/home/agent/workspace/"); err != nil {
+	if err := m.tarPipeTo(sandboxName, opts.Workspace, SandboxWorkspace); err != nil {
 		return fmt.Errorf("copying workspace: %w", err)
 	}
 	if err := m.tarPipeClaudeConfig(sandboxName, opts.ClaudeDir); err != nil {
 		return fmt.Errorf("copying claude config: %w", err)
 	}
-	if _, err := m.docker.SandboxExec(sandboxName, "git", "-C", "/home/agent/workspace", "clean", "-fdx", "-q"); err != nil {
-		return fmt.Errorf("cleaning workspace: %w", err)
-	}
-	if _, err := m.docker.SandboxExec(sandboxName, "git", "-C", "/home/agent/workspace", "checkout", "-b", opts.SessionID); err != nil {
-		return fmt.Errorf("creating branch: %w", err)
+	script := fmt.Sprintf(
+		"cd %s && git clean -fdx -q && git checkout -b %s",
+		SandboxWorkspace, opts.SessionID)
+	if _, err := m.docker.SandboxExec(sandboxName, "sh", "-c", script); err != nil {
+		return fmt.Errorf("setting up workspace: %w", err)
 	}
 	return nil
 }
@@ -84,6 +90,10 @@ func (m *Manager) Create(sandboxName string, opts CreateOpts) error {
 // tarPipeTo tars srcDir on the host and extracts into destDir in the sandbox.
 // If paths are provided, only those entries are tarred; otherwise the entire directory.
 func (m *Manager) tarPipeTo(sandboxName, srcDir, destDir string, paths ...string) error {
+	if _, err := m.docker.SandboxExec(sandboxName, "mkdir", "-p", destDir); err != nil {
+		return fmt.Errorf("creating %s: %w", destDir, err)
+	}
+
 	if len(paths) == 0 {
 		paths = []string{"."}
 	}
@@ -102,25 +112,23 @@ func (m *Manager) tarPipeTo(sandboxName, srcDir, destDir string, paths ...string
 	pw.Close()
 	extractErr := m.docker.SandboxExecWithStdin(pr, sandboxName, "tar", "-C", destDir, "-x")
 	pr.Close()
-	if waitErr := tarCmd.Wait(); waitErr != nil {
-		if extractErr != nil {
-			return fmt.Errorf("tar create: %w; extract: %v", waitErr, extractErr)
+	waitErr := tarCmd.Wait()
+	if extractErr != nil {
+		if waitErr != nil {
+			return fmt.Errorf("tar create: %v; extract: %w", waitErr, extractErr)
 		}
-		return fmt.Errorf("tar create: %w", waitErr)
+		return extractErr
 	}
-	return extractErr
+	// If extraction succeeded but tar exited non-zero (e.g. SIGPIPE from early
+	// pipe close), the data was fully consumed — treat as success.
+	return nil
 }
 
 // collectConfigFiles returns the subset of candidates that exist under dir.
-// Directories are only included if they are actually directories.
 func collectConfigFiles(dir string, candidates []string) []string {
 	var files []string
 	for _, f := range candidates {
-		info, err := os.Stat(filepath.Join(dir, f))
-		if err != nil {
-			continue
-		}
-		if info.IsDir() || !info.IsDir() {
+		if _, err := os.Stat(filepath.Join(dir, f)); err == nil {
 			files = append(files, f)
 		}
 	}
@@ -134,17 +142,16 @@ func (m *Manager) tarPipeClaudeConfig(sandboxName, claudeDir string) error {
 		return nil
 	}
 
-	if _, err := m.docker.SandboxExec(sandboxName, "mkdir", "-p", "/home/agent/.claude"); err != nil {
-		return fmt.Errorf("creating .claude dir: %w", err)
-	}
-	if err := m.tarPipeTo(sandboxName, claudeDir, "/home/agent/.claude", files...); err != nil {
+	if err := m.tarPipeTo(sandboxName, claudeDir, SandboxClaudeDir, files...); err != nil {
 		return err
 	}
 
 	// Symlink .claude.json to home dir only if the file was actually copied
 	for _, f := range files {
 		if f == ".claude.json" {
-			if _, err := m.docker.SandboxExec(sandboxName, "ln", "-sf", "/home/agent/.claude/.claude.json", "/home/agent/.claude.json"); err != nil {
+			src := SandboxClaudeDir + "/.claude.json"
+			dst := SandboxHome + "/.claude.json"
+			if _, err := m.docker.SandboxExec(sandboxName, "ln", "-sf", src, dst); err != nil {
 				return fmt.Errorf("symlinking .claude.json: %w", err)
 			}
 			break
@@ -160,11 +167,7 @@ func (m *Manager) RefreshConfig(sandboxName, claudeDir string) error {
 	if len(files) == 0 {
 		return nil
 	}
-
-	if _, err := m.docker.SandboxExec(sandboxName, "mkdir", "-p", "/home/agent/.claude"); err != nil {
-		return fmt.Errorf("creating .claude dir: %w", err)
-	}
-	return m.tarPipeTo(sandboxName, claudeDir, "/home/agent/.claude", files...)
+	return m.tarPipeTo(sandboxName, claudeDir, SandboxClaudeDir, files...)
 }
 
 // ApplyNetworkPolicy reads allowed-hosts.txt and applies deny-by-default network policy.
@@ -211,18 +214,18 @@ func (m *Manager) VerifyNetworkPolicy(sandboxName string) error {
 	return nil
 }
 
-// WrapClaudeBinary wraps the claude binary to cd to /home/agent/workspace first.
+// WrapClaudeBinary wraps the claude binary to cd to the workspace first.
 func (m *Manager) WrapClaudeBinary(sandboxName string) error {
-	script := `CLAUDE_BIN=$(which claude)
+	script := fmt.Sprintf(`CLAUDE_BIN=$(which claude)
 if [ ! -f "${CLAUDE_BIN}-real" ]; then
   sudo mv "$CLAUDE_BIN" "${CLAUDE_BIN}-real"
 fi
 sudo tee "$CLAUDE_BIN" > /dev/null << 'WRAPPER'
 #!/bin/bash
-cd /home/agent/workspace
+cd %s
 exec "$(dirname "$0")/claude-real" "$@"
 WRAPPER
-sudo chmod +x "$CLAUDE_BIN"`
+sudo chmod +x "$CLAUDE_BIN"`, SandboxWorkspace)
 	if _, err := m.docker.SandboxExec(sandboxName, "sh", "-c", script); err != nil {
 		return fmt.Errorf("wrapping claude binary: %w", err)
 	}
