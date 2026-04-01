@@ -403,6 +403,32 @@ func TestRefreshConfig(t *testing.T) {
 	}
 }
 
+func TestRun(t *testing.T) {
+	m := &mockDocker{}
+	mgr := NewManager(m, "/templates")
+
+	err := mgr.Run("my-sandbox", "--dangerously-skip-permissions")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m.calls) != 1 || m.calls[0].method != "SandboxRun" {
+		t.Errorf("Run: got %v", m.calls)
+	}
+}
+
+func TestRemove(t *testing.T) {
+	m := &mockDocker{}
+	mgr := NewManager(m, "/templates")
+
+	err := mgr.Remove("my-sandbox")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m.calls) != 1 || m.calls[0].method != "SandboxRm" {
+		t.Errorf("Remove: got %v", m.calls)
+	}
+}
+
 func TestRemoveAll(t *testing.T) {
 	m := &mockDocker{lsOutput: []docker.SandboxInfo{
 		{Name: "proj-jvm-1"},
