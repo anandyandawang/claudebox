@@ -61,13 +61,27 @@ func TestSecuritySuite(t *testing.T) {
 			t.Fatal("no virtiofs mount with .claudebox found")
 		}
 
-		t.Run("host mount dir is empty", func(t *testing.T) {
+		t.Run("host mount dir is empty and read-only", func(t *testing.T) {
+			info, err := os.Stat(emptyMount)
+			if err != nil {
+				t.Fatalf("stat mount dir: %v", err)
+			}
+			if perm := info.Mode().Perm(); perm != 0o555 {
+				t.Errorf("mount dir should be 555 (read-only), got %o", perm)
+			}
 			entries, err := os.ReadDir(emptyMount)
 			if err != nil {
 				t.Fatalf("reading mount dir: %v", err)
 			}
 			if len(entries) != 0 {
 				t.Errorf("mount dir should be empty on host, got %d entries", len(entries))
+			}
+		})
+
+		t.Run("sandbox write to mount is rejected", func(t *testing.T) {
+			_, err := testDocker.SandboxExec(name, "touch", emptyMount+"/write-test")
+			if err == nil {
+				t.Error("sandbox should not be able to write to the mount dir")
 			}
 		})
 
@@ -83,6 +97,22 @@ func TestSecuritySuite(t *testing.T) {
 			testDocker.SandboxExec(name, "sh", "-c", "echo secret > "+emptyMount+"/leak.txt 2>/dev/null || true")
 			if _, err := os.Stat(filepath.Join(emptyMount, "leak.txt")); err == nil {
 				t.Error("sandbox file write propagated to host")
+			}
+		})
+
+		t.Run("sandbox cannot chmod mount dir to regain write access", func(t *testing.T) {
+			testDocker.SandboxExec(name, "chmod", "777", emptyMount)
+			testDocker.SandboxExec(name, "sh", "-c", "echo escaped > "+emptyMount+"/chmod-test 2>/dev/null || true")
+			if _, err := os.Stat(filepath.Join(emptyMount, "chmod-test")); err == nil {
+				t.Error("sandbox regained write access via chmod")
+			}
+		})
+
+		t.Run("inner docker cannot write to mount via volume", func(t *testing.T) {
+			testDocker.SandboxExec(name, "sh", "-c",
+				"docker run --rm -v "+emptyMount+":/mnt alpine touch /mnt/inner-docker-escape 2>&1 || true")
+			if _, err := os.Stat(filepath.Join(emptyMount, "inner-docker-escape")); err == nil {
+				t.Error("inner docker bypassed mount permissions")
 			}
 		})
 	})

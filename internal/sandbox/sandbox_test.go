@@ -154,6 +154,16 @@ func TestCreate(t *testing.T) {
 	if !strings.Contains(createWorkspace, ".claudebox") {
 		t.Errorf("SandboxCreate workspace should be under ~/.claudebox, got %q", createWorkspace)
 	}
+	// Mount dir should be chmod 555 (readable for cwd, not writable)
+	info, err := os.Stat(createWorkspace)
+	if err != nil {
+		t.Fatalf("mount dir should exist: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o555 {
+		t.Errorf("mount dir should be 555, got %o", perm)
+	}
+	// Restore permissions so t.TempDir cleanup works
+	t.Cleanup(func() { os.Chmod(createWorkspace, 0o755) })
 
 	// Should have SandboxExecWithStdin calls for tar-pipe (workspace + claude config)
 	var stdinCalls []call
