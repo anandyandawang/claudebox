@@ -4,6 +4,7 @@ package integration
 
 import (
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -48,12 +49,17 @@ func TestDeadMountEscapeAttempts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("findmnt failed: %v", err)
 	}
-	// The dead mount is the first virtiofs target (primary workspace)
-	mountPaths := strings.Fields(out)
-	if len(mountPaths) == 0 {
-		t.Fatal("no virtiofs mounts found")
+	// The dead mount contains "claudebox-" (from os.MkdirTemp("", "claudebox-"))
+	var deadMount string
+	for _, p := range strings.Fields(out) {
+		if strings.Contains(p, "claudebox-") {
+			deadMount = p
+			break
+		}
 	}
-	deadMount := mountPaths[0]
+	if deadMount == "" {
+		t.Fatal("no virtiofs mount with claudebox- prefix found")
+	}
 
 	t.Run("write to dead mount fails", func(t *testing.T) {
 		_, err := testDocker.SandboxExec(name, "touch", deadMount+"/escape-test")
@@ -109,9 +115,10 @@ func TestHostDockerDaemonIsolation(t *testing.T) {
 
 	// VM boundary
 	t.Run("host paths not reachable via inner docker", func(t *testing.T) {
+		u, _ := user.Current()
 		out, err := testDocker.SandboxExec(name,
 			"sh", "-c", "docker run --rm -v /Users:/test alpine ls /test 2>&1 || true")
-		if err == nil && strings.Contains(out, "andywang") {
+		if err == nil && u != nil && strings.Contains(out, u.Username) {
 			t.Error("inner docker should not see host /Users directory")
 		}
 	})
@@ -128,7 +135,16 @@ func TestHostDockerDaemonIsolation(t *testing.T) {
 	// Inner Docker escape attempts against dead mount
 	t.Run("inner docker can't write to dead mount on host", func(t *testing.T) {
 		out, _ := testDocker.SandboxExec(name, "findmnt", "-t", "virtiofs", "-n", "-o", "TARGET")
-		deadMount := strings.Fields(out)[0]
+		var deadMount string
+		for _, p := range strings.Fields(out) {
+			if strings.Contains(p, "claudebox-") {
+				deadMount = p
+				break
+			}
+		}
+		if deadMount == "" {
+			t.Skip("no claudebox- virtiofs mount found")
+		}
 
 		testDocker.SandboxExec(name,
 			"sh", "-c", "docker run --rm -v "+deadMount+":/repo alpine touch /repo/docker-escape-test 2>&1 || true")

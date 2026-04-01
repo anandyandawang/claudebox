@@ -151,6 +151,10 @@ func TestCreate(t *testing.T) {
 	if createWorkspace == workspace || createWorkspace == claudeDir {
 		t.Errorf("SandboxCreate should use a temp dir, not %q", createWorkspace)
 	}
+	// Temp dir should have been deleted (dead mount property)
+	if _, err := os.Stat(createWorkspace); !os.IsNotExist(err) {
+		t.Errorf("temp dir %q should have been deleted after Create", createWorkspace)
+	}
 
 	// Should have SandboxExecWithStdin calls for tar-pipe (workspace + claude config)
 	var stdinCalls []call
@@ -163,16 +167,25 @@ func TestCreate(t *testing.T) {
 		t.Errorf("expected at least 2 SandboxExecWithStdin calls (workspace + config), got %d", len(stdinCalls))
 	}
 
-	// Should have SandboxExec call for git clean + checkout
-	var gitCall *call
+	// Should have SandboxExec calls for git clean and git checkout
+	var hasGitClean, hasGitCheckout bool
 	for _, c := range m.calls {
-		if c.method == "SandboxExec" && strings.Contains(strings.Join(c.args, " "), "git clean") {
-			gitCall = &c
-			break
+		if c.method != "SandboxExec" {
+			continue
+		}
+		args := strings.Join(c.args, " ")
+		if strings.Contains(args, "git") && strings.Contains(args, "clean") {
+			hasGitClean = true
+		}
+		if strings.Contains(args, "git") && strings.Contains(args, "checkout") {
+			hasGitCheckout = true
 		}
 	}
-	if gitCall == nil {
+	if !hasGitClean {
 		t.Error("expected SandboxExec call with git clean")
+	}
+	if !hasGitCheckout {
+		t.Error("expected SandboxExec call with git checkout")
 	}
 }
 

@@ -67,7 +67,7 @@ func (m *Manager) Create(sandboxName string, opts CreateOpts) error {
 	os.RemoveAll(tmpDir)
 
 	// Tar-pipe workspace into sandbox
-	if err := m.tarPipeDir(sandboxName, opts.Workspace, "/home/agent/workspace/"); err != nil {
+	if err := m.tarPipeTo(sandboxName, []string{"-C", opts.Workspace, "-c", "."}, "/home/agent/workspace/"); err != nil {
 		return fmt.Errorf("copying workspace: %w", err)
 	}
 
@@ -77,18 +77,19 @@ func (m *Manager) Create(sandboxName string, opts CreateOpts) error {
 	}
 
 	// Clean and create branch in workspace copy
-	script := fmt.Sprintf(
-		`cd /home/agent/workspace && git clean -fdx -q && git checkout -b '%s'`,
-		opts.SessionID)
-	if _, err := m.docker.SandboxExec(sandboxName, "sh", "-c", script); err != nil {
-		return fmt.Errorf("setting up workspace: %w", err)
+	if _, err := m.docker.SandboxExec(sandboxName, "git", "-C", "/home/agent/workspace", "clean", "-fdx", "-q"); err != nil {
+		return fmt.Errorf("cleaning workspace: %w", err)
+	}
+	if _, err := m.docker.SandboxExec(sandboxName, "git", "-C", "/home/agent/workspace", "checkout", "-b", opts.SessionID); err != nil {
+		return fmt.Errorf("creating branch: %w", err)
 	}
 	return nil
 }
 
-// tarPipeDir tars a host directory and pipes it into the sandbox at destDir.
-func (m *Manager) tarPipeDir(sandboxName, srcDir, destDir string) error {
-	tarCmd := exec.Command("tar", "-C", srcDir, "-c", ".")
+// tarPipeTo tars files from the host and pipes them into the sandbox at destDir.
+// tarArgs are passed directly to the host tar command (e.g. "-C", srcDir, "-c", ".").
+func (m *Manager) tarPipeTo(sandboxName string, tarArgs []string, destDir string) error {
+	tarCmd := exec.Command("tar", tarArgs...)
 	pr, pw, err := os.Pipe()
 	if err != nil {
 		return err
@@ -132,32 +133,16 @@ func (m *Manager) tarPipeClaudeConfig(sandboxName, claudeDir string) error {
 		return fmt.Errorf("creating .claude dir: %w", err)
 	}
 
-	args := append([]string{"-C", claudeDir, "-c"}, files...)
-	tarCmd := exec.Command("tar", args...)
-	pr, pw, err := os.Pipe()
-	if err != nil {
+	if err := m.tarPipeTo(sandboxName, append([]string{"-C", claudeDir, "-c"}, files...), "/home/agent/.claude"); err != nil {
 		return err
-	}
-	tarCmd.Stdout = pw
-	if err := tarCmd.Start(); err != nil {
-		pr.Close()
-		pw.Close()
-		return err
-	}
-	pw.Close()
-	extractErr := m.docker.SandboxExecWithStdin(pr, sandboxName, "tar", "-C", "/home/agent/.claude", "-x")
-	pr.Close()
-	if waitErr := tarCmd.Wait(); waitErr != nil {
-		if extractErr != nil {
-			return fmt.Errorf("tar create: %w; extract: %v", waitErr, extractErr)
-		}
-		return fmt.Errorf("tar create: %w", waitErr)
 	}
 
 	// Symlink .claude.json to home dir (Claude expects it at ~/.claude.json)
-	m.docker.SandboxExec(sandboxName, "ln", "-sf", "/home/agent/.claude/.claude.json", "/home/agent/.claude.json")
+	if _, err := m.docker.SandboxExec(sandboxName, "ln", "-sf", "/home/agent/.claude/.claude.json", "/home/agent/.claude.json"); err != nil {
+		return fmt.Errorf("symlinking .claude.json: %w", err)
+	}
 
-	return extractErr
+	return nil
 }
 
 // RefreshConfig re-copies settings.json and plugins/ from the host into the sandbox.
@@ -176,28 +161,12 @@ func (m *Manager) RefreshConfig(sandboxName, claudeDir string) error {
 		return nil
 	}
 
-	args := append([]string{"-C", claudeDir, "-c"}, files...)
-	tarCmd := exec.Command("tar", args...)
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		return err
+	// Ensure target dir exists (may have been removed inside sandbox)
+	if _, err := m.docker.SandboxExec(sandboxName, "mkdir", "-p", "/home/agent/.claude"); err != nil {
+		return fmt.Errorf("creating .claude dir: %w", err)
 	}
-	tarCmd.Stdout = pw
-	if err := tarCmd.Start(); err != nil {
-		pr.Close()
-		pw.Close()
-		return err
-	}
-	pw.Close()
-	extractErr := m.docker.SandboxExecWithStdin(pr, sandboxName, "tar", "-C", "/home/agent/.claude", "-x")
-	pr.Close()
-	if waitErr := tarCmd.Wait(); waitErr != nil {
-		if extractErr != nil {
-			return fmt.Errorf("tar create: %w; extract: %v", waitErr, extractErr)
-		}
-		return fmt.Errorf("tar create: %w", waitErr)
-	}
-	return extractErr
+
+	return m.tarPipeTo(sandboxName, append([]string{"-C", claudeDir, "-c"}, files...), "/home/agent/.claude")
 }
 
 // ApplyNetworkPolicy reads allowed-hosts.txt and applies deny-by-default network policy.
