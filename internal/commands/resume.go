@@ -9,6 +9,7 @@ import (
 	"claudebox/internal/sandbox"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -74,6 +75,12 @@ func runResume(d docker.Docker, templatesDir string, agentArgs []string, stdin *
 	}
 
 	fmt.Printf("Resuming sandbox: %s...\n", sandboxName)
+
+	claudeDir := filepath.Join(os.Getenv("HOME"), ".claude")
+
+	if err := mgr.RefreshConfig(sandboxName, claudeDir); err != nil {
+		return err
+	}
 
 	// Environment first, then credentials (matches Bash ordering)
 	if err := environment.Setup(d, sandboxName); err != nil {

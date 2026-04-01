@@ -79,14 +79,22 @@ If no `allowed-hosts.txt` is present, the sandbox has unrestricted network acces
 ## How it works
 
 1. Builds a Docker image from the template's `Dockerfile`.
-2. Creates a named sandbox, mounting the repo and `~/.claude` config.
-3. Symlinks the host `~/.claude` directory into the sandbox for auth and config.
-4. Copies the repo to the container's local filesystem (`/home/agent/workspace/`) and creates a session branch. Docker's VirtioFS mounts on macOS have write-visibility latency that corrupts build caches — the local copy avoids this entirely.
+2. Creates a named sandbox with an empty temporary directory as the workspace mount — the real workspace files are streamed in separately, so the mount never contains sensitive data.
+3. Tar-pipes the repo into `/home/agent/workspace/` and Claude config files (`.claude.json`, `settings.json`, `plugins/`) into `/home/agent/.claude/` via `docker sandbox exec -i`.
+4. Creates a session branch in the workspace copy.
 5. Wraps the `claude` binary so Claude Code's project directory is the local copy — all tools (Edit, Read, Glob, Bash) operate on the same files.
 6. Applies network restrictions if `allowed-hosts.txt` exists (with verification).
 7. Runs Claude Code inside the sandbox with `--dangerously-skip-permissions`.
 
-Each run creates a new sandbox with a fully local copy of the repo on its own branch, so multiple sessions can work independently in parallel.
+Each run creates a new sandbox with a fully local copy of the repo on its own branch, so multiple sessions can work independently in parallel. On resume, settings and plugins are re-synced from the host.
+
+### Host isolation
+
+The sandbox has no writable mounts back to the host filesystem:
+
+- **Empty read-only mount** — the required VirtioFS workspace mount points at `~/.claudebox/mount/`, a shared empty directory that is `chmod 555` after sandbox creation. The sandbox cannot write files back to the host through this mount.
+- **Tar-pipe file transfer** — workspace files and Claude config are streamed into the sandbox via `tar | docker sandbox exec -i`, not mounted. Changes inside the sandbox are sandbox-local.
+- **No host Docker access** — the sandbox runs inside a Docker Desktop VM with its own Docker daemon. Inner containers cannot mount host paths or communicate with the host Docker daemon.
 
 ## Development
 
@@ -96,11 +104,20 @@ Each run creates a new sandbox with a fully local copy of the repo on its own br
 # Unit tests
 make test
 
-# Integration tests (requires Docker)
+# Integration tests (requires Docker Desktop with sandbox support)
 make test-integration
 
 # Both
 make test-all
 ```
 
-Prerequisites: Go 1.21+ and Docker (for integration tests).
+Prerequisites: Go 1.21+ and Docker Desktop with sandbox support (for integration tests).
+
+### Test structure
+
+| Suite | Location | What it covers |
+|-------|----------|---------------|
+| Unit tests | `internal/*/` | Docker client, sandbox lifecycle, create/resume commands, credentials, environment setup |
+| Integration: filesystem | `tests/integration/filesystem_test.go` | Workspace layout, git branch, config symlinks, claude wrapper |
+| Integration: network | `tests/integration/network_test.go` | Deny-by-default firewall, allowed hosts, no-policy fallback |
+| Integration: security | `tests/integration/security_test.go` | Mount isolation, chmod bypass attempts, Docker daemon isolation, escape attempts |

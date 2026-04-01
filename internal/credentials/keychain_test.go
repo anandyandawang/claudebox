@@ -3,6 +3,7 @@ package credentials
 import (
 	"claudebox/internal/docker"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 )
@@ -20,7 +21,8 @@ func (m *mockDocker) SandboxExec(name string, args ...string) (string, error) {
 }
 func (m *mockDocker) SandboxLs(string) ([]docker.SandboxInfo, error) { return nil, nil }
 func (m *mockDocker) SandboxRm(string) error                         { return nil }
-func (m *mockDocker) SandboxNetworkProxy(string, []string) error     { return nil }
+func (m *mockDocker) SandboxExecWithStdin(io.Reader, string, ...string) error { return nil }
+func (m *mockDocker) SandboxNetworkProxy(string, []string) error              { return nil }
 
 func TestRefreshWithCredentials(t *testing.T) {
 	md := &mockDocker{}

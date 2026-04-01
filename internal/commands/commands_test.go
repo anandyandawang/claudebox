@@ -6,6 +6,7 @@ import (
 	"claudebox/internal/docker"
 	"claudebox/internal/sandbox"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -13,15 +14,28 @@ import (
 )
 
 type mockDocker struct {
-	lsOutput []docker.SandboxInfo
-	rmCalls  []string
-	failRm   bool
+	lsOutput           []docker.SandboxInfo
+	rmCalls            []string
+	failRm             bool
+	failExec           bool
+	failExecWithStdin  bool
+	failRun            bool
 }
 
 func (m *mockDocker) Build(string, string) error                            { return nil }
 func (m *mockDocker) SandboxCreate(string, docker.SandboxCreateOpts) error  { return nil }
-func (m *mockDocker) SandboxRun(string, ...string) error                    { return nil }
-func (m *mockDocker) SandboxExec(string, ...string) (string, error)         { return "", nil }
+func (m *mockDocker) SandboxRun(_ string, _ ...string) error {
+	if m.failRun {
+		return fmt.Errorf("run failed")
+	}
+	return nil
+}
+func (m *mockDocker) SandboxExec(_ string, _ ...string) (string, error) {
+	if m.failExec {
+		return "", fmt.Errorf("exec failed")
+	}
+	return "", nil
+}
 func (m *mockDocker) SandboxLs(filter string) ([]docker.SandboxInfo, error) {
 	if filter == "" {
 		return m.lsOutput, nil
@@ -41,7 +55,14 @@ func (m *mockDocker) SandboxRm(name string) error {
 	}
 	return nil
 }
-func (m *mockDocker) SandboxNetworkProxy(string, []string) error { return nil }
+func (m *mockDocker) SandboxExecWithStdin(r io.Reader, _ string, _ ...string) error {
+	io.Copy(io.Discard, r) // drain to avoid pipe deadlock
+	if m.failExecWithStdin {
+		return fmt.Errorf("exec with stdin failed")
+	}
+	return nil
+}
+func (m *mockDocker) SandboxNetworkProxy(string, []string) error              { return nil }
 
 func TestLsCommand(t *testing.T) {
 	md := &mockDocker{lsOutput: []docker.SandboxInfo{
@@ -490,5 +511,59 @@ func TestResumeWithDegenerateWorkspace(t *testing.T) {
 	err = runResume(md, t.TempDir(), nil, stdinFile)
 	if err != nil {
 		t.Fatalf("resume failed: %v", err)
+	}
+}
+
+func makeStdinFile(t *testing.T, content string) *os.File {
+	t.Helper()
+	f, err := os.CreateTemp(t.TempDir(), "stdin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.WriteString(content)
+	f.Seek(0, 0)
+	return f
+}
+
+func setupResumeTest(t *testing.T, md *mockDocker) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	wsDir := filepath.Join(tmpDir, "myproject")
+	os.Mkdir(wsDir, 0o755)
+	origDir, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(origDir) })
+	os.Chdir(wsDir)
+	resolved, _ := os.Getwd()
+	name := sandbox.GenerateSandboxName(resolved, "jvm")
+	md.lsOutput = []docker.SandboxInfo{{Name: name}}
+}
+
+func TestResumeRefreshConfigFailure(t *testing.T) {
+	// RefreshConfig calls SandboxExec (mkdir) then SandboxExecWithStdin (tar-pipe).
+	// If SandboxExec fails, RefreshConfig returns an error.
+	// Set up a fake HOME with a settings.json so collectConfigFiles finds files
+	// and RefreshConfig actually reaches the exec call (not the early-return).
+	tmpHome := t.TempDir()
+	claudeDir := filepath.Join(tmpHome, ".claude")
+	os.MkdirAll(claudeDir, 0o755)
+	os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte("{}"), 0o644)
+	t.Setenv("HOME", tmpHome)
+
+	md := &mockDocker{failExec: true}
+	setupResumeTest(t, md)
+
+	err := runResume(md, t.TempDir(), nil, makeStdinFile(t, "y\n"))
+	if err == nil {
+		t.Error("resume should fail when RefreshConfig fails")
+	}
+}
+
+func TestResumeRunFailure(t *testing.T) {
+	md := &mockDocker{failRun: true}
+	setupResumeTest(t, md)
+
+	err := runResume(md, t.TempDir(), nil, makeStdinFile(t, "y\n"))
+	if err == nil {
+		t.Error("resume should fail when SandboxRun fails")
 	}
 }
