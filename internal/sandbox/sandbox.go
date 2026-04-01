@@ -159,7 +159,7 @@ func (m *Manager) tarPipeClaudeConfig(sandboxName, claudeDir string) error {
 		}
 	}
 
-	if err := m.rewritePluginPaths(sandboxName, claudeDir); err != nil {
+	if err := m.rewriteHostPaths(sandboxName, claudeDir); err != nil {
 		return fmt.Errorf("rewriting plugin paths: %w", err)
 	}
 	return nil
@@ -175,23 +175,21 @@ func (m *Manager) RefreshConfig(sandboxName, claudeDir string) error {
 	if err := m.tarPipeTo(sandboxName, claudeDir, SandboxClaudeDir, files...); err != nil {
 		return err
 	}
-	if err := m.rewritePluginPaths(sandboxName, claudeDir); err != nil {
+	if err := m.rewriteHostPaths(sandboxName, claudeDir); err != nil {
 		return fmt.Errorf("rewriting plugin paths: %w", err)
 	}
 	return nil
 }
 
-// rewritePluginPaths fixes host absolute paths in installed_plugins.json
-// to use sandbox-relative paths (e.g. /Users/foo/.claude -> /home/agent/.claude).
-func (m *Manager) rewritePluginPaths(sandboxName, claudeDir string) error {
-	pluginManifest := SandboxClaudeDir + "/plugins/installed_plugins.json"
-	// Replace host home dir with sandbox home dir in all paths.
-	// installed_plugins.json contains absolute host paths for both
-	// ~/.claude/plugins/... and project-scoped installs like ~/Repos/...
+// rewriteHostPaths replaces host home dir references with sandbox home dir
+// across all JSON files copied into ~/.claude. This covers installed_plugins.json,
+// known_marketplaces.json, .claude.json, settings.json, and any other config
+// that may embed absolute host paths.
+func (m *Manager) rewriteHostPaths(sandboxName, claudeDir string) error {
 	hostHome := filepath.Dir(claudeDir)
 	script := fmt.Sprintf(
-		`sed -i "s|%s|%s|g" %s`,
-		hostHome, SandboxHome, pluginManifest)
+		`find %s -maxdepth 3 -name '*.json' -exec sed -i "s|%s|%s|g" {} +`,
+		SandboxClaudeDir, hostHome, SandboxHome)
 	_, err := m.docker.SandboxExec(sandboxName, "sh", "-c", script)
 	return err
 }

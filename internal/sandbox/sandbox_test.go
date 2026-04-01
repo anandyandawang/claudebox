@@ -226,11 +226,11 @@ func TestCreateFailsOnSandboxCreate(t *testing.T) {
 	}
 }
 
-func TestRewritePluginPaths(t *testing.T) {
+func TestRewriteHostPaths(t *testing.T) {
 	m := &mockDocker{}
 	mgr := NewManager(m, "/templates")
 
-	err := mgr.rewritePluginPaths("test-sandbox", "/Users/testuser/.claude")
+	err := mgr.rewriteHostPaths("test-sandbox", "/Users/testuser/.claude")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,12 +249,12 @@ func TestRewritePluginPaths(t *testing.T) {
 	if !strings.Contains(args, SandboxHome) {
 		t.Errorf("sed should reference sandbox home dir, got: %s", args)
 	}
-	if !strings.Contains(args, SandboxClaudeDir+"/plugins/installed_plugins.json") {
-		t.Errorf("sed should target plugin manifest, got: %s", args)
+	if !strings.Contains(args, SandboxClaudeDir) {
+		t.Errorf("sed should target claude dir, got: %s", args)
 	}
 }
 
-func TestCreateCallsRewritePluginPaths(t *testing.T) {
+func TestCreateCallsRewriteHostPaths(t *testing.T) {
 	m := &mockDocker{}
 	mgr := NewManager(m, "/templates")
 
@@ -287,7 +287,7 @@ func TestCreateCallsRewritePluginPaths(t *testing.T) {
 	}
 }
 
-func TestRefreshConfigCallsRewritePluginPaths(t *testing.T) {
+func TestRefreshConfigCallsRewriteHostPaths(t *testing.T) {
 	m := &mockDocker{}
 	mgr := NewManager(m, "/templates")
 

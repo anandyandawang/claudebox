@@ -50,17 +50,15 @@ func TestFilesystemLayout(t *testing.T) {
 		}
 	})
 
-	t.Run("plugin paths rewritten to sandbox paths", func(t *testing.T) {
-		manifest := sandbox.SandboxClaudeDir + "/plugins/installed_plugins.json"
-		out, err := testDocker.SandboxExec(name, "cat", manifest)
+	t.Run("host paths rewritten in claude config", func(t *testing.T) {
+		// Check that no JSON files under ~/.claude contain host home dir
+		out, err := testDocker.SandboxExec(name, "sh", "-c",
+			"grep -rl '"+os.Getenv("HOME")+"' "+sandbox.SandboxClaudeDir+"/ 2>/dev/null || true")
 		if err != nil {
-			t.Skipf("no installed_plugins.json: %v", err)
+			t.Fatalf("grep failed: %v", err)
 		}
-		if strings.Contains(out, os.Getenv("HOME")) {
-			t.Errorf("installed_plugins.json still contains host path %s", os.Getenv("HOME"))
-		}
-		if !strings.Contains(out, sandbox.SandboxClaudeDir) {
-			t.Errorf("installed_plugins.json should contain sandbox path %s", sandbox.SandboxClaudeDir)
+		if strings.TrimSpace(out) != "" {
+			t.Errorf("files still contain host path %s:\n%s", os.Getenv("HOME"), out)
 		}
 	})
 
