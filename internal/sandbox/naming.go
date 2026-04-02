@@ -41,8 +41,8 @@ func workspaceHash(fullWorkspace string) string {
 }
 
 // instanceHash returns the first 2 hex chars of SHA-256 of template + cat + microsecond timestamp.
-func instanceHash(fullTemplate, cat string) string {
-	return hexHashPrefix(fullTemplate+cat+fmt.Sprintf("%d", time.Now().UnixMicro()), instanceHashLen)
+func instanceHash(fullTemplate, cat string, unixMicro int64) string {
+	return hexHashPrefix(fullTemplate+cat+fmt.Sprintf("%d", unixMicro), instanceHashLen)
 }
 
 var catNames = []string{
@@ -64,9 +64,13 @@ func SanitizeWorkspaceName(name string) string {
 	return nonAlphanumeric.ReplaceAllString(name, "-")
 }
 
-// GenerateSessionID returns a session ID: sandbox-YYYYMMDD-HHMMSS.
-func GenerateSessionID() string {
-	return fmt.Sprintf("sandbox-%s", time.Now().Format("20060102-150405"))
+// GenerateSandboxID returns a unique sandbox instance ID: MMDD-cat(5)-hash(2).
+func GenerateSandboxID(template string) string {
+	cat := randomCatName()
+	now := time.Now()
+	iHash := instanceHash(template, cat, now.UnixMicro())
+	mmdd := now.Format("0102")
+	return fmt.Sprintf("%s-%s-%s", mmdd, cat, iHash)
 }
 
 // sanitizedWorkspace returns the truncated workspace name, falling back to
@@ -87,11 +91,7 @@ func WorkspacePrefix(workspacePath string) string {
 	return fmt.Sprintf("%s-%s.", wsHash, wsTrunc)
 }
 
-// GenerateSandboxName returns: <wshash(2)>-<workspace(12)>.<MMDD>-<cat(5)>-<hash(2)>
-func GenerateSandboxName(workspacePath, template string) string {
-	prefix := WorkspacePrefix(workspacePath)
-	cat := randomCatName()
-	iHash := instanceHash(template, cat)
-	mmdd := time.Now().Format("0102")
-	return fmt.Sprintf("%s%s-%s-%s", prefix, mmdd, cat, iHash)
+// GenerateSandboxName returns: <wshash(2)>-<workspace(12)>.<sandboxID>
+func GenerateSandboxName(workspacePath, sandboxID string) string {
+	return WorkspacePrefix(workspacePath) + sandboxID
 }

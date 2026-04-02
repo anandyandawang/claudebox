@@ -24,7 +24,8 @@ func TestSanitizeWorkspaceName(t *testing.T) {
 }
 
 func TestGenerateSandboxName(t *testing.T) {
-	name := GenerateSandboxName("/path/to/my-project", "jvm")
+	id := GenerateSandboxID("jvm")
+	name := GenerateSandboxName("/path/to/my-project", id)
 
 	// Format: <wshash(2)>-<workspace(12)>.<MMDD>-<cat(5)>-<hash(2)>
 	pattern := `^[0-9a-f]{2}-[a-zA-Z0-9_.-]{1,12}\.\d{4}-[a-z]{5}-[0-9a-f]{2}$`
@@ -39,27 +40,26 @@ func TestGenerateSandboxName(t *testing.T) {
 }
 
 func TestGenerateSandboxNameTruncatesLongWorkspace(t *testing.T) {
-	name := GenerateSandboxName("/path/to/lambda-jpm-clearings", "jvm")
+	id := GenerateSandboxID("jvm")
+	name := GenerateSandboxName("/path/to/lambda-jpm-clearings", id)
 
 	// "lambda-jpm-clearings" is 20 chars, should truncate to 12
-	// Workspace part is between first dash and the dot
 	dotIdx := strings.Index(name, ".")
 	if dotIdx == -1 {
 		t.Fatalf("no dot in name: %q", name)
 	}
-	wsPart := name[:dotIdx] // e.g. "b4-lambda-jpm-c"
-	// wshash is 2 chars + dash = 3, so workspace is wsPart[3:]
-	ws := wsPart[3:]
+	ws := name[3:dotIdx] // skip wshash(2) + dash
 	if len(ws) > 12 {
 		t.Errorf("workspace portion %q exceeds 12 chars", ws)
 	}
 }
 
 func TestGenerateSandboxNameTruncatesLongTemplate(t *testing.T) {
-	name := GenerateSandboxName("/path/to/myapp", "kotlin-spring")
+	// Template feeds into the hash via GenerateSandboxID but doesn't
+	// appear in the name directly. Just verify the name is valid and within length.
+	id := GenerateSandboxID("kotlin-spring")
+	name := GenerateSandboxName("/path/to/myapp", id)
 
-	// Template feeds into the hash but doesn't appear in the name directly
-	// Just verify the name is valid and within length
 	if len(name) > maxSandboxNameLen {
 		t.Errorf("name length = %d, want <= %d", len(name), maxSandboxNameLen)
 	}
@@ -77,7 +77,7 @@ func TestDegenerateWorkspaceNames(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			name := GenerateSandboxName(tt.path, "jvm")
+			name := GenerateSandboxName(tt.path, GenerateSandboxID("jvm"))
 
 			// Must still match the format and length constraint.
 			pattern := `^[0-9a-f]{2}-[a-zA-Z0-9_.-]{1,12}\.\d{4}-[a-z]{5}-[0-9a-f]{2}$`
@@ -97,11 +97,12 @@ func TestDegenerateWorkspaceNames(t *testing.T) {
 	}
 }
 
-func TestGenerateSessionID(t *testing.T) {
-	id := GenerateSessionID()
-	pattern := `^sandbox-\d{8}-\d{6}$`
+func TestGenerateSandboxID(t *testing.T) {
+	id := GenerateSandboxID("jvm")
+	// Format: MMDD-cat(5)-hash(2), e.g. "0401-chonk-f3"
+	pattern := `^\d{4}-[a-z]{5}-[0-9a-f]{2}$`
 	if matched, _ := regexp.MatchString(pattern, id); !matched {
-		t.Errorf("GenerateSessionID = %q, want match %s", id, pattern)
+		t.Errorf("GenerateSandboxID = %q, want match %s", id, pattern)
 	}
 }
 
@@ -170,7 +171,7 @@ func TestGenerateSandboxNameMaxLength(t *testing.T) {
 	// Worst case: 12-char workspace, 5-char cat name
 	// Run many times to exercise different cat names
 	for i := 0; i < 100; i++ {
-		name := GenerateSandboxName("/path/to/abcdefghijklmnopqrstuvwxyz", "long-template-name")
+		name := GenerateSandboxName("/path/to/abcdefghijklmnopqrstuvwxyz", GenerateSandboxID("long-template-name"))
 		if len(name) > maxSandboxNameLen {
 			t.Errorf("iteration %d: name %q length = %d, want <= %d", i, name, len(name), maxSandboxNameLen)
 		}
@@ -180,7 +181,7 @@ func TestGenerateSandboxNameMaxLength(t *testing.T) {
 func TestGenerateSandboxNameSocketPathFits(t *testing.T) {
 	// Simulate a long home directory: /Users/christopherjohnson (25 chars)
 	homeDir := "/Users/christopherjohnson"
-	name := GenerateSandboxName("/path/to/some-long-workspace-name", "jvm")
+	name := GenerateSandboxName("/path/to/some-long-workspace-name", GenerateSandboxID("jvm"))
 
 	socketPath := homeDir + "/.docker/sandboxes/vm/" + name + "/docker-public.sock"
 	if len(socketPath) > 103 {
@@ -197,7 +198,7 @@ func TestWorkspacePrefix(t *testing.T) {
 	}
 
 	// Should match the beginning of a generated name for the same workspace
-	name := GenerateSandboxName("/path/to/lambda-jpm-clearings", "jvm")
+	name := GenerateSandboxName("/path/to/lambda-jpm-clearings", GenerateSandboxID("jvm"))
 	if !strings.HasPrefix(name, prefix) {
 		t.Errorf("name %q does not start with prefix %q", name, prefix)
 	}
@@ -226,8 +227,8 @@ func TestWorkspacePrefixMatchesDifferentTemplates(t *testing.T) {
 	ws := "/repos/my-service"
 	prefix := WorkspacePrefix(ws)
 
-	nameJVM := GenerateSandboxName(ws, "jvm")
-	nameKotlin := GenerateSandboxName(ws, "kotlin-spring")
+	nameJVM := GenerateSandboxName(ws, GenerateSandboxID("jvm"))
+	nameKotlin := GenerateSandboxName(ws, GenerateSandboxID("kotlin-spring"))
 
 	if !strings.HasPrefix(nameJVM, prefix) {
 		t.Errorf("jvm name %q does not start with prefix %q", nameJVM, prefix)
@@ -271,8 +272,8 @@ func TestWorkspacePrefixIsolatesTruncationCollisions(t *testing.T) {
 	// Generate several sandbox names for each workspace.
 	var namesA, namesB []string
 	for i := 0; i < 10; i++ {
-		namesA = append(namesA, GenerateSandboxName(wsA, "jvm"))
-		namesB = append(namesB, GenerateSandboxName(wsB, "jvm"))
+		namesA = append(namesA, GenerateSandboxName(wsA, GenerateSandboxID("jvm")))
+		namesB = append(namesB, GenerateSandboxName(wsB, GenerateSandboxID("jvm")))
 	}
 
 	// Names from workspace A must match prefix A but NOT prefix B.

@@ -180,8 +180,8 @@ func TestRmAllRemovesMatchingSandboxes(t *testing.T) {
 	}
 
 	// Generate sandbox names that match this workspace.
-	nameA := sandbox.GenerateSandboxName(resolvedDir, "jvm")
-	nameB := sandbox.GenerateSandboxName(resolvedDir, "kotlin-spring")
+	nameA := sandbox.GenerateSandboxName(resolvedDir, sandbox.GenerateSandboxID("jvm"))
+	nameB := sandbox.GenerateSandboxName(resolvedDir, sandbox.GenerateSandboxID("kotlin-spring"))
 
 	md := &mockDocker{lsOutput: []docker.SandboxInfo{
 		{Name: nameA},
@@ -246,10 +246,10 @@ func TestRmAllDoesNotRemoveDifferentWorkspace(t *testing.T) {
 	}
 
 	// Generate sandbox names for each workspace.
-	sandboxA1 := sandbox.GenerateSandboxName(resolvedDirA, "jvm")
-	sandboxA2 := sandbox.GenerateSandboxName(resolvedDirA, "kotlin-spring")
-	sandboxB1 := sandbox.GenerateSandboxName(resolvedDirB, "jvm")
-	sandboxB2 := sandbox.GenerateSandboxName(resolvedDirB, "jvm")
+	sandboxA1 := sandbox.GenerateSandboxName(resolvedDirA, sandbox.GenerateSandboxID("jvm"))
+	sandboxA2 := sandbox.GenerateSandboxName(resolvedDirA, sandbox.GenerateSandboxID("kotlin-spring"))
+	sandboxB1 := sandbox.GenerateSandboxName(resolvedDirB, sandbox.GenerateSandboxID("jvm"))
+	sandboxB2 := sandbox.GenerateSandboxName(resolvedDirB, sandbox.GenerateSandboxID("jvm"))
 
 	md := &mockDocker{lsOutput: []docker.SandboxInfo{
 		{Name: sandboxA1},
@@ -317,8 +317,8 @@ func TestResumeOnlyShowsCurrentWorkspace(t *testing.T) {
 	resolvedDirB := filepath.Join(filepath.Dir(resolvedDirA), "..", "parent-b", "my-service")
 
 	// Generate sandbox names for both workspaces.
-	sandboxA := sandbox.GenerateSandboxName(resolvedDirA, "jvm")
-	sandboxB := sandbox.GenerateSandboxName(resolvedDirB, "jvm")
+	sandboxA := sandbox.GenerateSandboxName(resolvedDirA, sandbox.GenerateSandboxID("jvm"))
+	sandboxB := sandbox.GenerateSandboxName(resolvedDirB, sandbox.GenerateSandboxID("jvm"))
 
 	md := &mockDocker{lsOutput: []docker.SandboxInfo{
 		{Name: sandboxA},
@@ -383,8 +383,8 @@ func TestResumeIsolatesTruncatedWorkspaces(t *testing.T) {
 	resolvedDirB := filepath.Join(filepath.Dir(resolvedDirA), "lambda-jpm-clients")
 
 	// Generate sandbox names for both workspaces.
-	sandboxA := sandbox.GenerateSandboxName(resolvedDirA, "jvm")
-	sandboxB := sandbox.GenerateSandboxName(resolvedDirB, "jvm")
+	sandboxA := sandbox.GenerateSandboxName(resolvedDirA, sandbox.GenerateSandboxID("jvm"))
+	sandboxB := sandbox.GenerateSandboxName(resolvedDirB, sandbox.GenerateSandboxID("jvm"))
 
 	md := &mockDocker{lsOutput: []docker.SandboxInfo{
 		{Name: sandboxA},
@@ -432,12 +432,12 @@ func TestRmAllWithDegenerateWorkspace(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	nameA := sandbox.GenerateSandboxName(resolvedDir, "jvm")
-	nameB := sandbox.GenerateSandboxName(resolvedDir, "jvm")
+	nameA := sandbox.GenerateSandboxName(resolvedDir, sandbox.GenerateSandboxID("jvm"))
+	nameB := sandbox.GenerateSandboxName(resolvedDir, sandbox.GenerateSandboxID("jvm"))
 
 	// Also add a sandbox from a normal workspace to verify it's not touched.
 	normalDir := filepath.Join(filepath.Dir(resolvedDir), "normal-project")
-	normalName := sandbox.GenerateSandboxName(normalDir, "jvm")
+	normalName := sandbox.GenerateSandboxName(normalDir, sandbox.GenerateSandboxID("jvm"))
 
 	md := &mockDocker{lsOutput: []docker.SandboxInfo{
 		{Name: nameA},
@@ -487,9 +487,9 @@ func TestResumeWithDegenerateWorkspace(t *testing.T) {
 	}
 
 	// One sandbox from this degenerate workspace, one from a normal workspace.
-	degenerateName := sandbox.GenerateSandboxName(resolvedDir, "jvm")
+	degenerateName := sandbox.GenerateSandboxName(resolvedDir, sandbox.GenerateSandboxID("jvm"))
 	normalDir := filepath.Join(filepath.Dir(resolvedDir), "normal-project")
-	normalName := sandbox.GenerateSandboxName(normalDir, "jvm")
+	normalName := sandbox.GenerateSandboxName(normalDir, sandbox.GenerateSandboxID("jvm"))
 
 	md := &mockDocker{lsOutput: []docker.SandboxInfo{
 		{Name: degenerateName},
@@ -534,7 +534,7 @@ func setupResumeTest(t *testing.T, md *mockDocker) {
 	t.Cleanup(func() { os.Chdir(origDir) })
 	os.Chdir(wsDir)
 	resolved, _ := os.Getwd()
-	name := sandbox.GenerateSandboxName(resolved, "jvm")
+	name := sandbox.GenerateSandboxName(resolved, sandbox.GenerateSandboxID("jvm"))
 	md.lsOutput = []docker.SandboxInfo{{Name: name}}
 }
 

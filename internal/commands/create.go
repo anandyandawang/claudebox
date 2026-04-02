@@ -52,8 +52,8 @@ func RunCreate(d docker.Docker, templatesDir string, args []string) error {
 	}
 
 	// 3. Generate names
-	sessionID := sandbox.GenerateSessionID()
-	sandboxName := sandbox.GenerateSandboxName(workspace, template)
+	sandboxID := sandbox.GenerateSandboxID(template)
+	sandboxName := sandbox.GenerateSandboxName(workspace, sandboxID)
 	claudeDir := os.Getenv("HOME") + "/.claude"
 
 	// 4. Create sandbox
@@ -62,7 +62,7 @@ func RunCreate(d docker.Docker, templatesDir string, args []string) error {
 		ImageName: imageName,
 		Workspace: workspace,
 		ClaudeDir: claudeDir,
-		SessionID: sessionID,
+		SessionID: sandboxID,
 	}); err != nil {
 		return err
 	}

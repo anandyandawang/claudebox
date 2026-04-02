@@ -14,11 +14,11 @@ func TestImageBuilds(t *testing.T) {
 func TestSandboxNameFormat(t *testing.T) {
 	workspace := createTestWorkspace(t, "cb-create-test")
 	buildTemplateImage(t, "jvm")
-	name := createTestSandbox(t, "jvm", workspace)
-	defer cleanupSandbox(t, name)
+	sb := createTestSandbox(t, "jvm", workspace)
+	defer cleanupSandbox(t, sb.name)
 
 	pattern := `^[0-9a-f]{2}-cb-create-te\.\d{4}-[a-z]{5}-[0-9a-f]{2}$`
-	if matched, _ := regexp.MatchString(pattern, name); !matched {
-		t.Errorf("sandbox name %q doesn't match %s", name, pattern)
+	if matched, _ := regexp.MatchString(pattern, sb.name); !matched {
+		t.Errorf("sandbox name %q doesn't match %s", sb.name, pattern)
 	}
 }
