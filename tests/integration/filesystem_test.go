@@ -6,6 +6,7 @@ import (
 	"claudebox/internal/sandbox"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -23,13 +24,14 @@ func TestFilesystemLayout(t *testing.T) {
 		}
 	})
 
-	t.Run("git branch matches sandbox pattern", func(t *testing.T) {
+	t.Run("git branch matches sandbox ID pattern", func(t *testing.T) {
 		branch, err := testDocker.SandboxExec(name, "git", "-C", sandbox.SandboxWorkspace, "branch", "--show-current")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.HasPrefix(branch, "sandbox-") {
-			t.Errorf("branch %q should start with sandbox-", branch)
+		pattern := `^\d{4}-[a-z]{5}-[0-9a-f]{2}$`
+		if matched, _ := regexp.MatchString(pattern, strings.TrimSpace(branch)); !matched {
+			t.Errorf("branch %q should match pattern %s", branch, pattern)
 		}
 	})
 

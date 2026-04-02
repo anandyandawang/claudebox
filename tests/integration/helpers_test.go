@@ -50,14 +50,14 @@ func buildTemplateImage(t *testing.T, template string) {
 
 func createTestSandbox(t *testing.T, template, workspace string) string {
 	t.Helper()
-	sessionID := sandbox.GenerateSessionID()
-	name := sandbox.GenerateSandboxName(workspace, template)
+	sandboxID := sandbox.GenerateSandboxID(template)
+	name := sandbox.GenerateSandboxName(workspace, sandboxID)
 
 	err := testManager.Create(name, sandbox.CreateOpts{
 		ImageName: template + "-sandbox",
 		Workspace: workspace,
 		ClaudeDir: os.Getenv("HOME") + "/.claude",
-		SessionID: sessionID,
+		SessionID: sandboxID,
 	})
 	if err != nil {
 		t.Fatalf("failed to create sandbox: %v", err)
