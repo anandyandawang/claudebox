@@ -41,8 +41,8 @@ func workspaceHash(fullWorkspace string) string {
 }
 
 // instanceHash returns the first 2 hex chars of SHA-256 of template + cat + microsecond timestamp.
-func instanceHash(fullTemplate, cat string) string {
-	return hexHashPrefix(fullTemplate+cat+fmt.Sprintf("%d", time.Now().UnixMicro()), instanceHashLen)
+func instanceHash(fullTemplate, cat string, unixMicro int64) string {
+	return hexHashPrefix(fullTemplate+cat+fmt.Sprintf("%d", unixMicro), instanceHashLen)
 }
 
 var catNames = []string{
@@ -67,8 +67,9 @@ func SanitizeWorkspaceName(name string) string {
 // GenerateSandboxID returns a unique sandbox instance ID: MMDD-cat(5)-hash(2).
 func GenerateSandboxID(template string) string {
 	cat := randomCatName()
-	iHash := instanceHash(template, cat)
-	mmdd := time.Now().Format("0102")
+	now := time.Now()
+	iHash := instanceHash(template, cat, now.UnixMicro())
+	mmdd := now.Format("0102")
 	return fmt.Sprintf("%s-%s-%s", mmdd, cat, iHash)
 }
 
