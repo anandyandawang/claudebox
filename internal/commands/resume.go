@@ -5,7 +5,6 @@ import (
 	"bufio"
 	"claudebox/internal/credentials"
 	"claudebox/internal/docker"
-	"claudebox/internal/environment"
 	"claudebox/internal/sandbox"
 	"fmt"
 	"os"
@@ -82,10 +81,6 @@ func runResume(d docker.Docker, templatesDir string, agentArgs []string, stdin *
 		return err
 	}
 
-	// Environment first, then credentials (matches Bash ordering)
-	if err := environment.Setup(d, sandboxName); err != nil {
-		return err
-	}
 	if err := credentials.Refresh(d, sandboxName); err != nil {
 		return err
 	}
