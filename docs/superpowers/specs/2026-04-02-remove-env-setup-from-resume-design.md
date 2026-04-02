@@ -21,10 +21,13 @@ Environment variables written to `/etc/sandbox-persistent.sh` during the `create
 
 2. **`internal/commands/commands_test.go`**: Remove assertions for environment.Setup-related docker exec calls in resume tests (truncate and GITHUB_USERNAME export commands).
 
+### Additional cleanup
+
+- `internal/environment/environment.go` — removed truncation of `/etc/sandbox-persistent.sh` (dead code now that Setup only runs on create).
+- `internal/environment/environment_test.go` — removed `TestSetupTruncatesPersistentEnv` (tested removed behavior).
+
 ### No changes
 
-- `internal/environment/environment.go` — unchanged, still used by create flow.
-- `internal/environment/environment_test.go` — unchanged, tests the function itself.
 - `internal/commands/create.go` — unchanged, still calls `environment.Setup()`.
 - Integration tests — unchanged.
 
@@ -32,8 +35,11 @@ Environment variables written to `/etc/sandbox-persistent.sh` during the `create
 
 - `mgr.RefreshConfig()` — re-syncs settings.json and plugins from host (config changes between sessions).
 - `credentials.Refresh()` — re-loads credentials from macOS Keychain (credentials expire).
-- `mgr.WrapClaudeBinary()` — re-applies wrapper script.
 - `mgr.Run()` — starts the sandbox.
+
+### Removed from resume (beyond original scope)
+
+- `mgr.WrapClaudeBinary()` — the wrapper script persists in the sandbox filesystem from create. Manually verified it survives resume. The claude binary is installed in the base image and is not replaced between sessions. If this assumption is ever wrong, the failure is loud: claude starts in the empty mount directory instead of the workspace.
 
 ## Side Benefits
 

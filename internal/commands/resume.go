@@ -84,9 +84,6 @@ func runResume(d docker.Docker, templatesDir string, agentArgs []string, stdin *
 	if err := credentials.Refresh(d, sandboxName); err != nil {
 		return err
 	}
-	if err := mgr.WrapClaudeBinary(sandboxName); err != nil {
-		return err
-	}
 
 	fmt.Println("Starting sandbox...")
 	runArgs := append([]string{"--dangerously-skip-permissions"}, agentArgs...)
