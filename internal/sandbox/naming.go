@@ -90,11 +90,7 @@ func WorkspacePrefix(workspacePath string) string {
 	return fmt.Sprintf("%s-%s.", wsHash, wsTrunc)
 }
 
-// GenerateSandboxName returns: <wshash(2)>-<workspace(12)>.<MMDD>-<cat(5)>-<hash(2)>
-func GenerateSandboxName(workspacePath, template string) string {
-	prefix := WorkspacePrefix(workspacePath)
-	cat := randomCatName()
-	iHash := instanceHash(template, cat)
-	mmdd := time.Now().Format("0102")
-	return fmt.Sprintf("%s%s-%s-%s", prefix, mmdd, cat, iHash)
+// GenerateSandboxName returns: <wshash(2)>-<workspace(12)>.<sandboxID>
+func GenerateSandboxName(workspacePath, sandboxID string) string {
+	return WorkspacePrefix(workspacePath) + sandboxID
 }
