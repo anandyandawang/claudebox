@@ -21,10 +21,13 @@ Environment variables written to `/etc/sandbox-persistent.sh` during the `create
 
 2. **`internal/commands/commands_test.go`**: Remove assertions for environment.Setup-related docker exec calls in resume tests (truncate and GITHUB_USERNAME export commands).
 
+### Additional cleanup
+
+- `internal/environment/environment.go` — removed truncation of `/etc/sandbox-persistent.sh` (dead code now that Setup only runs on create).
+- `internal/environment/environment_test.go` — removed `TestSetupTruncatesPersistentEnv` (tested removed behavior).
+
 ### No changes
 
-- `internal/environment/environment.go` — unchanged, still used by create flow.
-- `internal/environment/environment_test.go` — unchanged, tests the function itself.
 - `internal/commands/create.go` — unchanged, still calls `environment.Setup()`.
 - Integration tests — unchanged.
 

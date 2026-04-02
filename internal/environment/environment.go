@@ -8,6 +8,7 @@ import (
 
 // Setup configures the sandbox environment:
 // exports GITHUB_USERNAME, configures JVM proxy, imports CA cert.
+// Must only be called on create (fresh container); appends to /etc/sandbox-persistent.sh.
 func Setup(d docker.Docker, sandboxName string) error {
 	// Export GITHUB_USERNAME if set (GITHUB_TOKEN is auto-injected by `docker sandbox run`)
 	if username := os.Getenv("GITHUB_USERNAME"); username != "" {
