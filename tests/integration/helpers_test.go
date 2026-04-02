@@ -48,7 +48,13 @@ func buildTemplateImage(t *testing.T, template string) {
 	}
 }
 
-func createTestSandbox(t *testing.T, template, workspace string) string {
+// testSandbox holds the container name and sandbox ID for a test sandbox.
+type testSandbox struct {
+	name      string // container name
+	sandboxID string // branch name / instance ID
+}
+
+func createTestSandbox(t *testing.T, template, workspace string) testSandbox {
 	t.Helper()
 	sandboxID := sandbox.GenerateSandboxID(template)
 	name := sandbox.GenerateSandboxName(workspace, sandboxID)
@@ -70,7 +76,7 @@ func createTestSandbox(t *testing.T, template, workspace string) string {
 		t.Fatalf("failed to wrap claude binary: %v", err)
 	}
 
-	return name
+	return testSandbox{name: name, sandboxID: sandboxID}
 }
 
 func applyNetworkPolicy(t *testing.T, sandboxName, template string) {

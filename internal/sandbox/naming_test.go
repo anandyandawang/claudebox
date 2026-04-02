@@ -55,6 +55,8 @@ func TestGenerateSandboxNameTruncatesLongWorkspace(t *testing.T) {
 }
 
 func TestGenerateSandboxNameTruncatesLongTemplate(t *testing.T) {
+	// Template feeds into the hash via GenerateSandboxID but doesn't
+	// appear in the name directly. Just verify the name is valid and within length.
 	id := GenerateSandboxID("kotlin-spring")
 	name := GenerateSandboxName("/path/to/myapp", id)
 

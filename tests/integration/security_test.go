@@ -29,7 +29,8 @@ func findEmptyMount(t *testing.T, name string) string {
 func TestSecuritySuite(t *testing.T) {
 	workspace := createTestWorkspace(t, "cb-security-test")
 	buildTemplateImage(t, "jvm")
-	name := createTestSandbox(t, "jvm", workspace)
+	sb := createTestSandbox(t, "jvm", workspace)
+	name := sb.name
 	defer cleanupSandbox(t, name)
 
 	t.Run("WorkspaceIsolation", func(t *testing.T) {

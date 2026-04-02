@@ -13,13 +13,13 @@ import (
 func TestNetworkPolicy(t *testing.T) {
 	workspace := createTestWorkspace(t, "cb-net-test")
 	buildTemplateImage(t, "jvm")
-	name := createTestSandbox(t, "jvm", workspace)
-	defer cleanupSandbox(t, name)
+	sb := createTestSandbox(t, "jvm", workspace)
+	defer cleanupSandbox(t, sb.name)
 
-	applyNetworkPolicy(t, name, "jvm")
+	applyNetworkPolicy(t, sb.name, "jvm")
 
 	t.Run("blocked host is unreachable", func(t *testing.T) {
-		_, err := testDocker.SandboxExec(name,
+		_, err := testDocker.SandboxExec(sb.name,
 			"curl", "--connect-timeout", "5", "-sf", "https://example.com")
 		if err == nil {
 			t.Error("example.com should be blocked")
@@ -27,7 +27,7 @@ func TestNetworkPolicy(t *testing.T) {
 	})
 
 	t.Run("allowed host is reachable", func(t *testing.T) {
-		_, err := testDocker.SandboxExec(name,
+		_, err := testDocker.SandboxExec(sb.name,
 			"curl", "--connect-timeout", "10", "-sf", "https://api.github.com/zen")
 		if err != nil {
 			t.Error("api.github.com should be reachable")
