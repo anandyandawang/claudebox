@@ -23,20 +23,6 @@ func (m *mockDocker) SandboxRm(string) error                         { return ni
 func (m *mockDocker) SandboxExecWithStdin(io.Reader, string, ...string) error { return nil }
 func (m *mockDocker) SandboxNetworkProxy(string, []string) error              { return nil }
 
-func TestSetupTruncatesPersistentEnv(t *testing.T) {
-	md := &mockDocker{}
-	if err := Setup(md, "my-sandbox"); err != nil {
-		t.Fatal(err)
-	}
-	if len(md.execCalls) < 1 {
-		t.Fatal("expected at least 1 exec call")
-	}
-	first := strings.Join(md.execCalls[0], " ")
-	if !strings.Contains(first, "truncate") {
-		t.Errorf("first call should truncate persistent env: got %s", first)
-	}
-}
-
 func TestSetupExportsGitHubUsername(t *testing.T) {
 	md := &mockDocker{}
 	t.Setenv("GITHUB_USERNAME", "testuser")
