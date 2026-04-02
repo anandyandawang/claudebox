@@ -32,8 +32,11 @@ Environment variables written to `/etc/sandbox-persistent.sh` during the `create
 
 - `mgr.RefreshConfig()` — re-syncs settings.json and plugins from host (config changes between sessions).
 - `credentials.Refresh()` — re-loads credentials from macOS Keychain (credentials expire).
-- `mgr.WrapClaudeBinary()` — re-applies wrapper script.
 - `mgr.Run()` — starts the sandbox.
+
+### Removed from resume (beyond original scope)
+
+- `mgr.WrapClaudeBinary()` — the wrapper script persists in the sandbox filesystem from create. Manually verified it survives resume. The claude binary is installed in the base image and is not replaced between sessions. If this assumption is ever wrong, the failure is loud: claude starts in the empty mount directory instead of the workspace.
 
 ## Side Benefits
 
