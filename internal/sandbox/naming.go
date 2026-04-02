@@ -64,9 +64,12 @@ func SanitizeWorkspaceName(name string) string {
 	return nonAlphanumeric.ReplaceAllString(name, "-")
 }
 
-// GenerateSessionID returns a session ID: sandbox-YYYYMMDD-HHMMSS.
-func GenerateSessionID() string {
-	return fmt.Sprintf("sandbox-%s", time.Now().Format("20060102-150405"))
+// GenerateSandboxID returns a unique sandbox instance ID: MMDD-cat(5)-hash(2).
+func GenerateSandboxID(template string) string {
+	cat := randomCatName()
+	iHash := instanceHash(template, cat)
+	mmdd := time.Now().Format("0102")
+	return fmt.Sprintf("%s-%s-%s", mmdd, cat, iHash)
 }
 
 // sanitizedWorkspace returns the truncated workspace name, falling back to

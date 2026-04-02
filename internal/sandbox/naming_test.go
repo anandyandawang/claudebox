@@ -97,11 +97,12 @@ func TestDegenerateWorkspaceNames(t *testing.T) {
 	}
 }
 
-func TestGenerateSessionID(t *testing.T) {
-	id := GenerateSessionID()
-	pattern := `^sandbox-\d{8}-\d{6}$`
+func TestGenerateSandboxID(t *testing.T) {
+	id := GenerateSandboxID("jvm")
+	// Format: MMDD-cat(5)-hash(2), e.g. "0401-chonk-f3"
+	pattern := `^\d{4}-[a-z]{5}-[0-9a-f]{2}$`
 	if matched, _ := regexp.MatchString(pattern, id); !matched {
-		t.Errorf("GenerateSessionID = %q, want match %s", id, pattern)
+		t.Errorf("GenerateSandboxID = %q, want match %s", id, pattern)
 	}
 }
 
