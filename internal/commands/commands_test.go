@@ -558,6 +558,21 @@ func TestResumeRefreshConfigFailure(t *testing.T) {
 	}
 }
 
+func TestResumeWrapBinaryFailure(t *testing.T) {
+	// WrapClaudeBinary calls SandboxExec. With no config files in HOME,
+	// RefreshConfig returns early and SandboxExec is only hit by WrapClaudeBinary.
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	md := &mockDocker{failExec: true}
+	setupResumeTest(t, md)
+
+	err := runResume(md, t.TempDir(), nil, makeStdinFile(t, "y\n"))
+	if err == nil {
+		t.Error("resume should fail when WrapClaudeBinary fails")
+	}
+}
+
 func TestResumeRunFailure(t *testing.T) {
 	md := &mockDocker{failRun: true}
 	setupResumeTest(t, md)

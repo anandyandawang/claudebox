@@ -50,6 +50,50 @@ func TestFilesystemLayout(t *testing.T) {
 		}
 	})
 
+	t.Run("re-wrap after binary replacement restores wrapper", func(t *testing.T) {
+		// Simulate Claude Code auto-update: overwrite the wrapper with a fake binary.
+		_, err := testDocker.SandboxExec(sb.name, "sh", "-c",
+			`sudo tee "$(which claude)" > /dev/null <<'BIN'
+#!/bin/bash
+echo "I am a new claude binary"
+BIN`)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Capture claude-real before re-wrap to verify it's preserved.
+		realBefore, err := testDocker.SandboxExec(sb.name, "sh", "-c", `cat "$(which claude)-real"`)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Re-wrap (as resume would do).
+		if err := testManager.WrapClaudeBinary(sb.name); err != nil {
+			t.Fatal(err)
+		}
+
+		// Wrapper should be restored.
+		out, err := testDocker.SandboxExec(sb.name, "sh", "-c", `cat "$(which claude)"`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(out, "cd /home/agent/workspace") {
+			t.Errorf("wrapper should be restored with cd, got: %s", out)
+		}
+		if !strings.Contains(out, "claude-real") {
+			t.Errorf("wrapper should exec claude-real, got: %s", out)
+		}
+
+		// claude-real should be unchanged (guard prevented mv of the fake binary).
+		realAfter, err := testDocker.SandboxExec(sb.name, "sh", "-c", `cat "$(which claude)-real"`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if realAfter != realBefore {
+			t.Errorf("claude-real was modified by re-wrap:\nbefore: %s\nafter: %s", realBefore, realAfter)
+		}
+	})
+
 	t.Run("host paths rewritten in claude config", func(t *testing.T) {
 		// Check that no JSON files under ~/.claude contain host home dir
 		out, err := testDocker.SandboxExec(sb.name, "sh", "-c",
