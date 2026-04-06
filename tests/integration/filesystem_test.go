@@ -50,6 +50,18 @@ func TestFilesystemLayout(t *testing.T) {
 		}
 	})
 
+	t.Run("sandbox run starts without cwd error", func(t *testing.T) {
+		// Verifies the OCI runtime can chdir into the workspace mount.
+		// This catches the deleted-temp-dir bug where docker sandbox run
+		// fails with "no such file or directory" before any command runs.
+		// Runs before re-wrap tests that replace claude-real with fakes.
+		cmd := exec.Command("docker", "sandbox", "run", sb.name, "--", "--version")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Errorf("sandbox run failed (cwd likely invalid): %s", out)
+		}
+	})
+
 	t.Run("re-wrap after binary replacement restores wrapper", func(t *testing.T) {
 		// Simulate Claude Code auto-update: overwrite the wrapper with a fake binary.
 		_, err := testDocker.SandboxExec(sb.name, "sh", "-c",
@@ -173,14 +185,4 @@ sudo chmod +x "$CLAUDE_BIN"`)
 		}
 	})
 
-	t.Run("sandbox run starts without cwd error", func(t *testing.T) {
-		// Verifies the OCI runtime can chdir into the workspace mount.
-		// This catches the deleted-temp-dir bug where docker sandbox run
-		// fails with "no such file or directory" before any command runs.
-		cmd := exec.Command("docker", "sandbox", "run", sb.name, "--", "--version")
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Errorf("sandbox run failed (cwd likely invalid): %s", out)
-		}
-	})
 }
