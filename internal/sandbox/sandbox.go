@@ -254,9 +254,12 @@ func (m *Manager) WrapClaudeBinary(sandboxName string) error {
 	script := fmt.Sprintf(`CLAUDE_BIN=$(which claude)
 if [ ! -f "${CLAUDE_BIN}-real" ]; then
   sudo mv "$CLAUDE_BIN" "${CLAUDE_BIN}-real"
+elif ! grep -q 'CLAUDEBOX_WRAPPER' "$CLAUDE_BIN"; then
+  sudo mv "$CLAUDE_BIN" "${CLAUDE_BIN}-real"
 fi
 sudo tee "$CLAUDE_BIN" > /dev/null << 'WRAPPER'
 #!/bin/bash
+# CLAUDEBOX_WRAPPER
 cd %s
 exec "$(dirname "$0")/claude-real" "$@"
 WRAPPER
