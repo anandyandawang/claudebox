@@ -78,6 +78,9 @@ BIN`)
 		if !strings.Contains(out, "CLAUDEBOX_WRAPPER") {
 			t.Errorf("wrapper should contain sentinel, got: %s", out)
 		}
+		if !strings.Contains(out, "claude-real") {
+			t.Errorf("wrapper should exec claude-real, got: %s", out)
+		}
 
 		// claude-real should now be the NEW fake binary (sentinel detected the replacement).
 		realAfter, err := testDocker.SandboxExec(sb.name, "sh", "-c", `cat "$(which claude)-real"`)

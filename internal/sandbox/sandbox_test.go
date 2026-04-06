@@ -380,8 +380,8 @@ func TestWrapClaudeBinary(t *testing.T) {
 	if !strings.Contains(script, "claude-real") {
 		t.Error("WrapClaudeBinary script should reference claude-real")
 	}
-	if !strings.Contains(script, "CLAUDEBOX_WRAPPER") {
-		t.Error("WrapClaudeBinary script should contain CLAUDEBOX_WRAPPER sentinel")
+	if !strings.Contains(script, "# CLAUDEBOX_WRAPPER") {
+		t.Error("WrapClaudeBinary script should contain # CLAUDEBOX_WRAPPER sentinel comment")
 	}
 	if !strings.Contains(script, "grep -q") {
 		t.Error("WrapClaudeBinary script should use grep to detect auto-updates")
