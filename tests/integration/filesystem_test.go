@@ -132,6 +132,32 @@ sudo chmod +x "$CLAUDE_BIN"`)
 		}
 	})
 
+	t.Run("re-wrap is idempotent when wrapper intact", func(t *testing.T) {
+		// Ensure wrapper is in place from a prior test.
+		if err := testManager.WrapClaudeBinary(sb.name); err != nil {
+			t.Fatal(err)
+		}
+
+		// Capture claude-real before a second re-wrap.
+		realBefore, err := testDocker.SandboxExec(sb.name, "sh", "-c", `cat "$(which claude)-real"`)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Re-wrap again — wrapper has the sentinel, so claude-real should NOT change.
+		if err := testManager.WrapClaudeBinary(sb.name); err != nil {
+			t.Fatal(err)
+		}
+
+		realAfter, err := testDocker.SandboxExec(sb.name, "sh", "-c", `cat "$(which claude)-real"`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if realAfter != realBefore {
+			t.Errorf("claude-real should be unchanged when wrapper is intact:\nbefore: %s\nafter: %s", realBefore, realAfter)
+		}
+	})
+
 	t.Run("host paths rewritten in claude config", func(t *testing.T) {
 		// Check that no JSON files under ~/.claude contain host home dir
 		out, err := testDocker.SandboxExec(sb.name, "sh", "-c",
