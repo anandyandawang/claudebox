@@ -560,7 +560,10 @@ func TestResumeRefreshConfigFailure(t *testing.T) {
 
 func TestResumeWrapBinaryFailure(t *testing.T) {
 	// WrapClaudeBinary calls SandboxExec. With no config files in HOME,
-	// RefreshConfig returns early and SandboxExec is only hit by WrapClaudeBinary.
+	// RefreshConfig returns early. On macOS with valid Keychain credentials,
+	// credentials.Refresh also reaches SandboxExec — in that case this test
+	// exercises credentials.Refresh failure rather than WrapClaudeBinary, but
+	// still validates that resume propagates SandboxExec errors.
 	tmpHome := t.TempDir()
 	t.Setenv("HOME", tmpHome)
 

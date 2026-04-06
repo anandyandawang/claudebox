@@ -29,7 +29,11 @@ Environment variables written to `/etc/sandbox-persistent.sh` during the `create
 ### No changes
 
 - `internal/commands/create.go` — unchanged, still calls `environment.Setup()`.
-- Integration tests — unchanged.
+
+### Test changes
+
+- `internal/commands/commands_test.go` — added `TestResumeWrapBinaryFailure` for WrapClaudeBinary error propagation on resume.
+- `tests/integration/filesystem_test.go` — added re-wrap integration tests (auto-update replacement and full binary replacement).
 
 ### What stays in resume
 

@@ -94,6 +94,49 @@ BIN`)
 		}
 	})
 
+	t.Run("re-wrap after full binary replacement uses mv path", func(t *testing.T) {
+		// Simulate full package replacement: both claude (wrapper) and claude-real are gone.
+		// Write a fake binary to claude and remove claude-real to trigger the mv guard.
+		_, err := testDocker.SandboxExec(sb.name, "sh", "-c",
+			`CLAUDE_BIN=$(which claude) && sudo rm -f "${CLAUDE_BIN}-real" && sudo tee "$CLAUDE_BIN" > /dev/null <<'BIN'
+#!/bin/bash
+echo "I am a fully replaced claude binary"
+BIN
+sudo chmod +x "$CLAUDE_BIN"`)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Verify claude-real is gone.
+		_, err = testDocker.SandboxExec(sb.name, "sh", "-c", `test -f "$(which claude)-real"`)
+		if err == nil {
+			t.Fatal("claude-real should not exist before re-wrap")
+		}
+
+		// Re-wrap — should trigger the mv path (move fake binary to claude-real).
+		if err := testManager.WrapClaudeBinary(sb.name); err != nil {
+			t.Fatal(err)
+		}
+
+		// Wrapper should be in place.
+		out, err := testDocker.SandboxExec(sb.name, "sh", "-c", `cat "$(which claude)"`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(out, "cd /home/agent/workspace") {
+			t.Errorf("wrapper should contain cd, got: %s", out)
+		}
+
+		// claude-real should now exist (mv path created it from the fake binary).
+		realOut, err := testDocker.SandboxExec(sb.name, "sh", "-c", `cat "$(which claude)-real"`)
+		if err != nil {
+			t.Fatal("claude-real should exist after re-wrap via mv path")
+		}
+		if !strings.Contains(realOut, "fully replaced claude binary") {
+			t.Errorf("claude-real should be the fake binary that was moved, got: %s", realOut)
+		}
+	})
+
 	t.Run("host paths rewritten in claude config", func(t *testing.T) {
 		// Check that no JSON files under ~/.claude contain host home dir
 		out, err := testDocker.SandboxExec(sb.name, "sh", "-c",
