@@ -2,6 +2,7 @@
 package main
 
 import (
+	"claudebox/internal/cache"
 	"claudebox/internal/commands"
 	"claudebox/internal/docker"
 	"fmt"
@@ -19,6 +20,10 @@ func main() {
 	}
 
 	d := docker.NewClient()
+
+	// Prune stale image-cache tars before running any command.
+	imageCacheDir := filepath.Join(os.Getenv("HOME"), ".docker", "sandboxes", "image-cache")
+	cache.PruneImageCache(imageCacheDir)
 
 	rootCmd := &cobra.Command{
 		Use:   "claudebox [template] [workspace] [-- agent_args...]",
