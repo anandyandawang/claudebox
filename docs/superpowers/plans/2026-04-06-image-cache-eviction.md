@@ -45,8 +45,8 @@ func TestPruneImageCache_DeletesStaleTars(t *testing.T) {
 	if err := os.WriteFile(staleFile, []byte("stale"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	// Backdate modification time to 2 hours ago
-	staleTime := time.Now().Add(-2 * time.Hour)
+	// Backdate modification time past the maxAge threshold
+	staleTime := time.Now().Add(-2 * maxAge)
 	if err := os.Chtimes(staleFile, staleTime, staleTime); err != nil {
 		t.Fatal(err)
 	}
@@ -150,11 +150,11 @@ Add to `internal/cache/prune_test.go`:
 ```go
 func TestPruneImageCache_SkipsTmpFiles(t *testing.T) {
 	dir := t.TempDir()
-	tmpFile := filepath.Join(dir, ".tmp-jvm-sandbox-7fc06f01-aaa.tar1234567")
+	tmpFile := filepath.Join(dir, ".tmp-jvm-sandbox-7fc06f01-aaa.tar")
 	if err := os.WriteFile(tmpFile, []byte("downloading"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	staleTime := time.Now().Add(-2 * time.Hour)
+	staleTime := time.Now().Add(-2 * maxAge)
 	if err := os.Chtimes(tmpFile, staleTime, staleTime); err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +184,7 @@ func TestPruneImageCache_SkipsNonTarFiles(t *testing.T) {
 	if err := os.WriteFile(otherFile, []byte("logs"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	staleTime := time.Now().Add(-2 * time.Hour)
+	staleTime := time.Now().Add(-2 * maxAge)
 	if err := os.Chtimes(otherFile, staleTime, staleTime); err != nil {
 		t.Fatal(err)
 	}
