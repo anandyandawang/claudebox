@@ -558,6 +558,24 @@ func TestResumeRefreshConfigFailure(t *testing.T) {
 	}
 }
 
+func TestResumeWrapBinaryFailure(t *testing.T) {
+	// WrapClaudeBinary calls SandboxExec. With no config files in HOME,
+	// RefreshConfig returns early. On macOS with valid Keychain credentials,
+	// credentials.Refresh also reaches SandboxExec — in that case this test
+	// exercises credentials.Refresh failure rather than WrapClaudeBinary, but
+	// still validates that resume propagates SandboxExec errors.
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	md := &mockDocker{failExec: true}
+	setupResumeTest(t, md)
+
+	err := runResume(md, t.TempDir(), nil, makeStdinFile(t, "y\n"))
+	if err == nil {
+		t.Error("resume should fail when WrapClaudeBinary fails")
+	}
+}
+
 func TestResumeRunFailure(t *testing.T) {
 	md := &mockDocker{failRun: true}
 	setupResumeTest(t, md)

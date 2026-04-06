@@ -29,7 +29,11 @@ Environment variables written to `/etc/sandbox-persistent.sh` during the `create
 ### No changes
 
 - `internal/commands/create.go` — unchanged, still calls `environment.Setup()`.
-- Integration tests — unchanged.
+
+### Test changes
+
+- `internal/commands/commands_test.go` — added `TestResumeWrapBinaryFailure` for WrapClaudeBinary error propagation on resume.
+- `tests/integration/filesystem_test.go` — added re-wrap integration tests (auto-update replacement and full binary replacement).
 
 ### What stays in resume
 
@@ -37,9 +41,9 @@ Environment variables written to `/etc/sandbox-persistent.sh` during the `create
 - `credentials.Refresh()` — re-loads credentials from macOS Keychain (credentials expire).
 - `mgr.Run()` — starts the sandbox.
 
-### Removed from resume (beyond original scope)
+### WrapClaudeBinary stays in resume
 
-- `mgr.WrapClaudeBinary()` — the wrapper script persists in the sandbox filesystem from create. Manually verified it survives resume. The claude binary is installed in the base image and is not replaced between sessions. If this assumption is ever wrong, the failure is loud: claude starts in the empty mount directory instead of the workspace.
+- `mgr.WrapClaudeBinary()` must run on resume. The wrapper script persists across stop/start, but Claude Code auto-updates can replace the binary at the `claude` path, overwriting the wrapper with a fresh binary. Without re-wrapping on resume, the sandbox boots in the empty mount directory instead of the workspace. The idempotent guard (`if [ ! -f "${CLAUDE_BIN}-real" ]`) ensures re-wrapping is safe when the wrapper is still intact.
 
 ## Side Benefits
 
