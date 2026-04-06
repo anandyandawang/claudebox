@@ -43,7 +43,7 @@ Environment variables written to `/etc/sandbox-persistent.sh` during the `create
 
 ### WrapClaudeBinary stays in resume
 
-- `mgr.WrapClaudeBinary()` must run on resume. The wrapper script persists across stop/start, but Claude Code auto-updates can replace the binary at the `claude` path, overwriting the wrapper with a fresh binary. Without re-wrapping on resume, the sandbox boots in the empty mount directory instead of the workspace. The idempotent guard (`if [ ! -f "${CLAUDE_BIN}-real" ]`) ensures re-wrapping is safe when the wrapper is still intact.
+- `mgr.WrapClaudeBinary()` must run on resume. The wrapper script persists across stop/start, but Claude Code auto-updates can replace the binary at the `claude` path, overwriting the wrapper with a fresh binary. Without re-wrapping on resume, the sandbox boots in the empty mount directory instead of the workspace. A `CLAUDEBOX_WRAPPER` sentinel in the wrapper script detects whether `claude` is still the wrapper or has been replaced by an auto-update. If replaced, the new binary is moved to `claude-real` before re-writing the wrapper — ensuring the sandbox picks up the updated binary.
 
 ## Side Benefits
 
