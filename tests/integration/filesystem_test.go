@@ -61,13 +61,8 @@ BIN`)
 			t.Fatal(err)
 		}
 
-		// Capture claude-real before re-wrap to verify it's preserved.
-		realBefore, err := testDocker.SandboxExec(sb.name, "sh", "-c", `cat "$(which claude)-real"`)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// Re-wrap (as resume would do).
+		// Re-wrap (as resume would do). Sentinel is missing from the fake binary,
+		// so it should be moved to claude-real (replacing the old one).
 		if err := testManager.WrapClaudeBinary(sb.name); err != nil {
 			t.Fatal(err)
 		}
@@ -80,17 +75,17 @@ BIN`)
 		if !strings.Contains(out, "cd /home/agent/workspace") {
 			t.Errorf("wrapper should be restored with cd, got: %s", out)
 		}
-		if !strings.Contains(out, "claude-real") {
-			t.Errorf("wrapper should exec claude-real, got: %s", out)
+		if !strings.Contains(out, "CLAUDEBOX_WRAPPER") {
+			t.Errorf("wrapper should contain sentinel, got: %s", out)
 		}
 
-		// claude-real should be unchanged (guard prevented mv of the fake binary).
+		// claude-real should now be the NEW fake binary (sentinel detected the replacement).
 		realAfter, err := testDocker.SandboxExec(sb.name, "sh", "-c", `cat "$(which claude)-real"`)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if realAfter != realBefore {
-			t.Errorf("claude-real was modified by re-wrap:\nbefore: %s\nafter: %s", realBefore, realAfter)
+		if !strings.Contains(realAfter, "new claude binary") {
+			t.Errorf("claude-real should be the auto-updated binary, got: %s", realAfter)
 		}
 	})
 
