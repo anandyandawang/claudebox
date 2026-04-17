@@ -310,6 +310,38 @@ func (m *Manager) RemoveAll(workspacePrefix string) (int, error) {
 	return count, nil
 }
 
+// resetToDefaultBranch discovers origin's default branch, fetches, and force-resets
+// the sandbox's working tree to origin/<default>. HEAD ends up on <default>.
+// Silently discards any local modifications and untracked files carried in via
+// tar-pipe.
+func (m *Manager) resetToDefaultBranch(sandboxName string) error {
+	out, err := m.docker.SandboxExec(sandboxName, "git", "-C", SandboxWorkspace,
+		"ls-remote", "--symref", "origin", "HEAD")
+	if err != nil {
+		return fmt.Errorf("determining default branch: %w", err)
+	}
+	branch, err := parseDefaultBranchFromSymref(out)
+	if err != nil {
+		return fmt.Errorf("determining default branch: %w", err)
+	}
+
+	if _, err := m.docker.SandboxExec(sandboxName, "git", "-C", SandboxWorkspace,
+		"clean", "-fdx", "-q"); err != nil {
+		return fmt.Errorf("cleaning workspace: %w", err)
+	}
+
+	if _, err := m.docker.SandboxExec(sandboxName, "git", "-C", SandboxWorkspace,
+		"fetch", "origin"); err != nil {
+		return fmt.Errorf("fetching origin: %w", err)
+	}
+
+	if _, err := m.docker.SandboxExec(sandboxName, "git", "-C", SandboxWorkspace,
+		"checkout", "-f", "-B", branch, "origin/"+branch); err != nil {
+		return fmt.Errorf("resetting to origin/%s: %w", branch, err)
+	}
+	return nil
+}
+
 // parseDefaultBranchFromSymref extracts the branch name from the output of
 // `git ls-remote --symref origin HEAD`. The first line is expected to be of
 // the form "ref: refs/heads/<branch>\tHEAD".

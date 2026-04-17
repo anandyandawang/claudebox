@@ -553,6 +553,48 @@ func TestRemoveAll(t *testing.T) {
 	}
 }
 
+func TestResetToDefaultBranch(t *testing.T) {
+	m := &mockDocker{
+		execOut: map[string]string{
+			"ls-remote --symref": "ref: refs/heads/main\tHEAD\nabc123\tHEAD\n",
+		},
+	}
+	mgr := NewManager(m, "/templates")
+
+	if err := mgr.resetToDefaultBranch("test-sandbox"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify the command sequence issued via SandboxExec.
+	var execArgs [][]string
+	for _, c := range m.calls {
+		if c.method == "SandboxExec" {
+			execArgs = append(execArgs, c.args)
+		}
+	}
+	if len(execArgs) != 4 {
+		t.Fatalf("expected 4 SandboxExec calls, got %d: %v", len(execArgs), execArgs)
+	}
+
+	checks := []struct {
+		name     string
+		contains []string
+	}{
+		{"ls-remote first", []string{"ls-remote", "--symref", "origin", "HEAD"}},
+		{"clean second", []string{"clean", "-fdx", "-q"}},
+		{"fetch third", []string{"fetch", "origin"}},
+		{"checkout -f -B fourth", []string{"checkout", "-f", "-B", "main", "origin/main"}},
+	}
+	for i, chk := range checks {
+		joined := strings.Join(execArgs[i], " ")
+		for _, want := range chk.contains {
+			if !strings.Contains(joined, want) {
+				t.Errorf("%s: args[%d]=%q missing %q", chk.name, i, joined, want)
+			}
+		}
+	}
+}
+
 func TestParseDefaultBranchFromSymref(t *testing.T) {
 	tests := []struct {
 		name    string
