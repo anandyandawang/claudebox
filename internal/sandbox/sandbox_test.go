@@ -179,7 +179,7 @@ func TestCreate(t *testing.T) {
 		ImageName: "jvm-sandbox",
 		Workspace: workspace,
 		ClaudeDir: claudeDir,
-		SessionID: "sandbox-20260325-120000",
+		SessionID: "0325-mochi-a1",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -233,7 +233,7 @@ func TestCreate(t *testing.T) {
 		if strings.Contains(joined, "clean") {
 			hasClean = true
 		}
-		if strings.Contains(joined, "checkout -b sandbox-20260325-120000") {
+		if strings.Contains(joined, "checkout -b 0325-mochi-a1") {
 			hasSessionCheckout = true
 		}
 	}
@@ -241,7 +241,7 @@ func TestCreate(t *testing.T) {
 		t.Error("expected SandboxExec call with git clean")
 	}
 	if !hasSessionCheckout {
-		t.Error("expected SandboxExec call with 'checkout -b sandbox-20260325-120000' for session branch")
+		t.Error("expected SandboxExec call with 'checkout -b 0325-mochi-a1' for session branch")
 	}
 }
 
@@ -257,7 +257,7 @@ func TestCreateFailsOnExecWithStdin(t *testing.T) {
 		ImageName: "jvm-sandbox",
 		Workspace: workspace,
 		ClaudeDir: claudeDir,
-		SessionID: "sandbox-20260325-120000",
+		SessionID: "0325-mochi-a1",
 	})
 	if err == nil {
 		t.Fatal("expected error when SandboxExecWithStdin fails")
@@ -278,7 +278,7 @@ func TestCreateFailsOnSandboxCreate(t *testing.T) {
 		ImageName: "jvm-sandbox",
 		Workspace: workspace,
 		ClaudeDir: claudeDir,
-		SessionID: "sandbox-20260325-120000",
+		SessionID: "0325-mochi-a1",
 	})
 	if err == nil {
 		t.Fatal("expected error when SandboxCreate fails")
@@ -334,7 +334,7 @@ func TestCreateCallsRewriteHostPaths(t *testing.T) {
 		ImageName: "jvm-sandbox",
 		Workspace: workspace,
 		ClaudeDir: claudeDir,
-		SessionID: "sandbox-20260325-120000",
+		SessionID: "0325-mochi-a1",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -375,7 +375,7 @@ func TestCreateFailsOnGitSetup(t *testing.T) {
 		ImageName: "jvm-sandbox",
 		Workspace: workspace,
 		ClaudeDir: claudeDir,
-		SessionID: "sandbox-20260325-120000",
+		SessionID: "0325-mochi-a1",
 	})
 	if err == nil {
 		t.Fatal("expected error when SandboxExec fails")
