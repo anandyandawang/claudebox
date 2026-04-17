@@ -253,7 +253,6 @@ Replace with:
 import (
 	"claudebox/internal/sandbox"
 	"fmt"
-	"net/url"
 	"os"
 	"os/exec"
 	"strings"
@@ -324,16 +323,26 @@ Append directly after the block added in Step 3:
 
 ```go
 	t.Run("JAVA_TOOL_OPTIONS written when HTTPS_PROXY is set on host", func(t *testing.T) {
-		proxy := os.Getenv("HTTPS_PROXY")
-		if proxy == "" {
+		if os.Getenv("HTTPS_PROXY") == "" {
 			t.Skip("HTTPS_PROXY not set on host")
 		}
 
-		u, err := url.Parse(proxy)
-		if err != nil || u.Hostname() == "" || u.Port() == "" {
-			t.Fatalf("cannot parse HTTPS_PROXY=%q: %v", proxy, err)
+		// Extract proxy host/port inside the sandbox using the SAME sed
+		// expressions production uses in environment.go. This keeps the
+		// test in lockstep with production parsing (userinfo, schemeless
+		// values, IPv6 etc. behave identically in test and production).
+		hostOut, err := testDocker.SandboxExec(sb.name, "sh", "-c",
+			`echo "$HTTPS_PROXY" | sed -E "s|https?://||;s|:.*||"`)
+		if err != nil {
+			t.Fatalf("extracting proxy host: %v", err)
 		}
-		host, port := u.Hostname(), u.Port()
+		portOut, err := testDocker.SandboxExec(sb.name, "sh", "-c",
+			`echo "$HTTPS_PROXY" | sed -E "s|.*:([0-9]+).*|\1|"`)
+		if err != nil {
+			t.Fatalf("extracting proxy port: %v", err)
+		}
+		host := strings.TrimSpace(hostOut)
+		port := strings.TrimSpace(portOut)
 
 		got, err := testDocker.SandboxExec(sb.name, "sh", "-c",
 			`. /etc/sandbox-persistent.sh && printf %s "$JAVA_TOOL_OPTIONS"`)

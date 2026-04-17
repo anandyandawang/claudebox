@@ -71,7 +71,7 @@ In `tests/integration/filesystem_test.go`, add three subtests under `TestFilesys
 
 3. **`JAVA_TOOL_OPTIONS written when HTTPS_PROXY is set on host`**
    - If `HTTPS_PROXY` is not set on the host, `t.Skip("HTTPS_PROXY not set on host")`.
-   - Parse the expected proxy host and port from the host's `HTTPS_PROXY` (matching the `sed` transforms in `environment.go`).
+   - Extract the expected proxy host and port by running the exact same `sed` expressions production uses in `environment.go`, invoked inside the sandbox via `SandboxExec`. This keeps test and production parsing in lockstep (userinfo, schemeless values, IPv6 all behave identically).
    - Inside the sandbox: source `/etc/sandbox-persistent.sh` in a subshell and print `$JAVA_TOOL_OPTIONS`.
    - Assert the output contains `-Dhttps.proxyHost=<expected>` and `-Dhttps.proxyPort=<expected>` (and the corresponding `http.proxyHost`/`http.proxyPort`).
 
