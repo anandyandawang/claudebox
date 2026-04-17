@@ -33,6 +33,23 @@ func TestFilesystemLayout(t *testing.T) {
 		}
 	})
 
+	t.Run("session branch matches origin/main tip", func(t *testing.T) {
+		sessionTip, err := testDocker.SandboxExec(sb.name, "git", "-C", sandbox.SandboxWorkspace,
+			"rev-parse", "HEAD")
+		if err != nil {
+			t.Fatal(err)
+		}
+		originTip, err := testDocker.SandboxExec(sb.name, "git", "-C", sandbox.SandboxWorkspace,
+			"rev-parse", "origin/main")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.TrimSpace(sessionTip) != strings.TrimSpace(originTip) {
+			t.Errorf("session HEAD %q != origin/main %q",
+				strings.TrimSpace(sessionTip), strings.TrimSpace(originTip))
+		}
+	})
+
 	t.Run("claude config symlinks exist", func(t *testing.T) {
 		_, err := testDocker.SandboxExec(sb.name, "test", "-L", sandbox.SandboxHome+"/.claude.json")
 		if err != nil {
