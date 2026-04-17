@@ -595,6 +595,78 @@ func TestResetToDefaultBranch(t *testing.T) {
 	}
 }
 
+func TestResetToDefaultBranchLsRemoteFails(t *testing.T) {
+	m := &mockDocker{
+		execErrs: map[string]error{
+			"ls-remote --symref": fmt.Errorf("no such remote: origin"),
+		},
+	}
+	mgr := NewManager(m, "/templates")
+
+	err := mgr.resetToDefaultBranch("test-sandbox")
+	if err == nil {
+		t.Fatal("expected error when ls-remote fails")
+	}
+	if !strings.Contains(err.Error(), "determining default branch") {
+		t.Errorf("error should mention default branch discovery, got: %v", err)
+	}
+}
+
+func TestResetToDefaultBranchMalformedLsRemote(t *testing.T) {
+	m := &mockDocker{
+		execOut: map[string]string{"ls-remote --symref": "garbage\n"},
+	}
+	mgr := NewManager(m, "/templates")
+
+	err := mgr.resetToDefaultBranch("test-sandbox")
+	if err == nil {
+		t.Fatal("expected error when ls-remote output is malformed")
+	}
+	if !strings.Contains(err.Error(), "determining default branch") {
+		t.Errorf("error should mention default branch discovery, got: %v", err)
+	}
+}
+
+func TestResetToDefaultBranchFetchFails(t *testing.T) {
+	m := &mockDocker{
+		execOut: map[string]string{
+			"ls-remote --symref": "ref: refs/heads/main\tHEAD\n",
+		},
+		execErrs: map[string]error{
+			"fetch origin": fmt.Errorf("network error"),
+		},
+	}
+	mgr := NewManager(m, "/templates")
+
+	err := mgr.resetToDefaultBranch("test-sandbox")
+	if err == nil {
+		t.Fatal("expected error when fetch fails")
+	}
+	if !strings.Contains(err.Error(), "fetching origin") {
+		t.Errorf("error should mention fetching origin, got: %v", err)
+	}
+}
+
+func TestResetToDefaultBranchCheckoutFails(t *testing.T) {
+	m := &mockDocker{
+		execOut: map[string]string{
+			"ls-remote --symref": "ref: refs/heads/main\tHEAD\n",
+		},
+		execErrs: map[string]error{
+			"checkout -f -B": fmt.Errorf("checkout failed"),
+		},
+	}
+	mgr := NewManager(m, "/templates")
+
+	err := mgr.resetToDefaultBranch("test-sandbox")
+	if err == nil {
+		t.Fatal("expected error when checkout fails")
+	}
+	if !strings.Contains(err.Error(), "resetting to origin/main") {
+		t.Errorf("error should mention resetting to origin/main, got: %v", err)
+	}
+}
+
 func TestParseDefaultBranchFromSymref(t *testing.T) {
 	tests := []struct {
 		name    string
