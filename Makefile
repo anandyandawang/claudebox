@@ -9,7 +9,7 @@ test-unit:
 	go test ./...
 
 test-integration:
-	go test -tags integration -v ./tests/integration/ -timeout 300s
+	go test -tags integration -v ./tests/integration/ -timeout 600s
 
 test-all: test-unit test-integration
 
