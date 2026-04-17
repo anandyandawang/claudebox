@@ -319,7 +319,15 @@ func (m *Manager) resetToDefaultBranch(sandboxName string) error {
 	if os.Getenv("GITHUB_TOKEN") != "" {
 		env = []string{"GITHUB_TOKEN"}
 	}
-	out, err := m.docker.SandboxExecEnv(sandboxName, env, "git", "-C", SandboxWorkspace,
+	// The sandbox image ships a credential.https://github.com.helper=gh-token
+	// config that does NOT consult GITHUB_TOKEN. Override with
+	// `!gh auth git-credential`, which delegates to gh proper — gh respects
+	// GITHUB_TOKEN when set.
+	const ghCredHelper = "credential.helper=!gh auth git-credential"
+
+	out, err := m.docker.SandboxExecEnv(sandboxName, env, "git",
+		"-c", ghCredHelper,
+		"-C", SandboxWorkspace,
 		"ls-remote", "--symref", "origin", "HEAD")
 	if err != nil {
 		return fmt.Errorf("determining default branch: %w", err)
@@ -334,7 +342,9 @@ func (m *Manager) resetToDefaultBranch(sandboxName string) error {
 		return fmt.Errorf("cleaning workspace: %w", err)
 	}
 
-	if _, err := m.docker.SandboxExecEnv(sandboxName, env, "git", "-C", SandboxWorkspace,
+	if _, err := m.docker.SandboxExecEnv(sandboxName, env, "git",
+		"-c", ghCredHelper,
+		"-C", SandboxWorkspace,
 		"fetch", "origin"); err != nil {
 		return fmt.Errorf("fetching origin: %w", err)
 	}
