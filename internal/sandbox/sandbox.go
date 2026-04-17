@@ -84,8 +84,8 @@ func (m *Manager) Create(sandboxName string, opts CreateOpts) error {
 	if err := m.tarPipeClaudeConfig(sandboxName, opts.ClaudeDir); err != nil {
 		return fmt.Errorf("copying claude config: %w", err)
 	}
-	if _, err := m.docker.SandboxExec(sandboxName, "git", "-C", SandboxWorkspace, "clean", "-fdx", "-q"); err != nil {
-		return fmt.Errorf("cleaning workspace: %w", err)
+	if err := m.resetToDefaultBranch(sandboxName); err != nil {
+		return err
 	}
 	if _, err := m.docker.SandboxExec(sandboxName, "git", "-C", SandboxWorkspace, "checkout", "-b", opts.SessionID); err != nil {
 		return fmt.Errorf("creating session branch: %w", err)

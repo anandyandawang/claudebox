@@ -135,7 +135,11 @@ func TestBuildImage(t *testing.T) {
 }
 
 func TestCreate(t *testing.T) {
-	m := &mockDocker{}
+	m := &mockDocker{
+		execOut: map[string]string{
+			"ls-remote --symref": "ref: refs/heads/main\tHEAD\n",
+		},
+	}
 	mgr := NewManager(m, "/templates")
 
 	// Create real workspace dir for tar to work
@@ -286,7 +290,11 @@ func TestRewriteHostPaths(t *testing.T) {
 }
 
 func TestCreateCallsRewriteHostPaths(t *testing.T) {
-	m := &mockDocker{}
+	m := &mockDocker{
+		execOut: map[string]string{
+			"ls-remote --symref": "ref: refs/heads/main\tHEAD\n",
+		},
+	}
 	mgr := NewManager(m, "/templates")
 
 	workspace := t.TempDir()
