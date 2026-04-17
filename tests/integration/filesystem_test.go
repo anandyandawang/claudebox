@@ -4,6 +4,7 @@ package integration
 
 import (
 	"claudebox/internal/sandbox"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -199,6 +200,93 @@ sudo chmod +x "$CLAUDE_BIN"`)
 		}
 		if strings.TrimSpace(out) != "" {
 			t.Errorf("files still contain host path %s:\n%s", os.Getenv("HOME"), out)
+		}
+	})
+
+	t.Run("host git identity imported into sandbox", func(t *testing.T) {
+		hostNameOut, _ := exec.Command("git", "config", "--global", "user.name").Output()
+		hostEmailOut, _ := exec.Command("git", "config", "--global", "user.email").Output()
+		hostName := strings.TrimSpace(string(hostNameOut))
+		hostEmail := strings.TrimSpace(string(hostEmailOut))
+		if hostName == "" && hostEmail == "" {
+			t.Skip("host has no global git identity")
+		}
+
+		if hostName != "" {
+			got, err := testDocker.SandboxExec(sb.name, "git", "config", "--global", "user.name")
+			if err != nil {
+				t.Fatalf("reading sandbox user.name: %v", err)
+			}
+			if strings.TrimSpace(got) != hostName {
+				t.Errorf("sandbox user.name = %q, want %q", strings.TrimSpace(got), hostName)
+			}
+		}
+		if hostEmail != "" {
+			got, err := testDocker.SandboxExec(sb.name, "git", "config", "--global", "user.email")
+			if err != nil {
+				t.Fatalf("reading sandbox user.email: %v", err)
+			}
+			if strings.TrimSpace(got) != hostEmail {
+				t.Errorf("sandbox user.email = %q, want %q", strings.TrimSpace(got), hostEmail)
+			}
+		}
+	})
+
+	t.Run("GITHUB_USERNAME exported in sandbox-persistent.sh", func(t *testing.T) {
+		hostValue := os.Getenv("GITHUB_USERNAME")
+		if hostValue == "" {
+			t.Skip("GITHUB_USERNAME not set on host")
+		}
+
+		got, err := testDocker.SandboxExec(sb.name, "sh", "-c",
+			`. /etc/sandbox-persistent.sh && printf %s "$GITHUB_USERNAME"`)
+		if err != nil {
+			t.Fatalf("sourcing sandbox-persistent.sh: %v", err)
+		}
+		if strings.TrimSpace(got) != hostValue {
+			t.Errorf("sandbox GITHUB_USERNAME = %q, want %q", strings.TrimSpace(got), hostValue)
+		}
+	})
+
+	t.Run("JAVA_TOOL_OPTIONS written when HTTPS_PROXY is set on host", func(t *testing.T) {
+		if os.Getenv("HTTPS_PROXY") == "" {
+			t.Skip("HTTPS_PROXY not set on host")
+		}
+
+		// Extract proxy host/port inside the sandbox using the SAME sed
+		// expressions production uses in environment.go. This keeps the
+		// test in lockstep with production parsing (userinfo, schemeless
+		// values, IPv6 etc. behave identically in test and production).
+		hostOut, err := testDocker.SandboxExec(sb.name, "sh", "-c",
+			`echo "$HTTPS_PROXY" | sed -E "s|https?://||;s|:.*||"`)
+		if err != nil {
+			t.Fatalf("extracting proxy host: %v", err)
+		}
+		portOut, err := testDocker.SandboxExec(sb.name, "sh", "-c",
+			`echo "$HTTPS_PROXY" | sed -E "s|.*:([0-9]+).*|\1|"`)
+		if err != nil {
+			t.Fatalf("extracting proxy port: %v", err)
+		}
+		host := strings.TrimSpace(hostOut)
+		port := strings.TrimSpace(portOut)
+
+		got, err := testDocker.SandboxExec(sb.name, "sh", "-c",
+			`. /etc/sandbox-persistent.sh && printf %s "$JAVA_TOOL_OPTIONS"`)
+		if err != nil {
+			t.Fatalf("sourcing sandbox-persistent.sh: %v", err)
+		}
+		opts := strings.TrimSpace(got)
+
+		want := []string{
+			fmt.Sprintf("-Dhttp.proxyHost=%s", host),
+			fmt.Sprintf("-Dhttp.proxyPort=%s", port),
+			fmt.Sprintf("-Dhttps.proxyHost=%s", host),
+			fmt.Sprintf("-Dhttps.proxyPort=%s", port),
+		}
+		for _, w := range want {
+			if !strings.Contains(opts, w) {
+				t.Errorf("JAVA_TOOL_OPTIONS missing %q; got: %q", w, opts)
+			}
 		}
 	})
 
