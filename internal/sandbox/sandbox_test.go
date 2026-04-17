@@ -220,8 +220,11 @@ func TestCreate(t *testing.T) {
 	}
 
 	// Should have SandboxExec calls for git clean (inside resetToDefaultBranch)
-	// and git checkout (in Create, separate to avoid shell injection via SessionID).
-	var hasClean, hasCheckout bool
+	// and the session-branch `git checkout -b <sessionID>` (in Create, separate
+	// to avoid shell injection via SessionID). The resetToDefaultBranch step
+	// also emits a `checkout -f -B <default>` call, so the session-branch
+	// check asserts on the sessionID to avoid being satisfied by that one.
+	var hasClean, hasSessionCheckout bool
 	for _, c := range m.calls {
 		if c.method != "SandboxExec" {
 			continue
@@ -230,15 +233,15 @@ func TestCreate(t *testing.T) {
 		if strings.Contains(joined, "clean") {
 			hasClean = true
 		}
-		if strings.Contains(joined, "checkout") {
-			hasCheckout = true
+		if strings.Contains(joined, "checkout -b sandbox-20260325-120000") {
+			hasSessionCheckout = true
 		}
 	}
 	if !hasClean {
 		t.Error("expected SandboxExec call with git clean")
 	}
-	if !hasCheckout {
-		t.Error("expected SandboxExec call with git checkout")
+	if !hasSessionCheckout {
+		t.Error("expected SandboxExec call with 'checkout -b sandbox-20260325-120000' for session branch")
 	}
 }
 
@@ -621,9 +624,9 @@ func TestResetToDefaultBranch(t *testing.T) {
 	}{
 		{"ls-remote first", []string{"ls-remote", "--symref", "origin", "HEAD",
 			"credential.helper=!gh auth git-credential"}},
-		{"clean second", []string{"clean", "-fdx", "-q"}},
-		{"fetch third", []string{"fetch", "origin",
+		{"fetch second", []string{"fetch", "origin",
 			"credential.helper=!gh auth git-credential"}},
+		{"clean third", []string{"clean", "-fdx", "-q"}},
 		{"checkout -f -B fourth", []string{"checkout", "-f", "-B", "main", "origin/main"}},
 	}
 	for i, chk := range checks {

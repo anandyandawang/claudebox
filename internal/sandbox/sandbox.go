@@ -57,6 +57,9 @@ func (m *Manager) BuildImage(template string) (string, error) {
 }
 
 // Create creates a sandbox with tar-piped workspace and config, no host mounts.
+// After tar-pipe, the workspace is force-reset to origin/<default> via
+// resetToDefaultBranch, then a session branch is created from that state. The
+// workspace must have a reachable `origin` remote; Create aborts otherwise.
 func (m *Manager) Create(sandboxName string, opts CreateOpts) error {
 	// Mount a shared empty dir instead of the real workspace. The sandbox
 	// gets its files via tar-pipe. VirtioFS writes go to this empty dir,
@@ -314,6 +317,10 @@ func (m *Manager) RemoveAll(workspacePrefix string) (int, error) {
 // the sandbox's working tree to origin/<default>. HEAD ends up on <default>.
 // Silently discards any local modifications and untracked files carried in via
 // tar-pipe.
+//
+// Order: ls-remote → fetch → clean → checkout. Network calls happen before any
+// working-tree mutation, so an auth/network failure leaves the tar-piped state
+// intact rather than a half-cleaned tree.
 func (m *Manager) resetToDefaultBranch(sandboxName string) error {
 	var env []string
 	if os.Getenv("GITHUB_TOKEN") != "" {
@@ -337,16 +344,16 @@ func (m *Manager) resetToDefaultBranch(sandboxName string) error {
 		return fmt.Errorf("determining default branch: %w", err)
 	}
 
-	if _, err := m.docker.SandboxExec(sandboxName, "git", "-C", SandboxWorkspace,
-		"clean", "-fdx", "-q"); err != nil {
-		return fmt.Errorf("cleaning workspace: %w", err)
-	}
-
 	if _, err := m.docker.SandboxExecEnv(sandboxName, env, "git",
 		"-c", ghCredHelper,
 		"-C", SandboxWorkspace,
 		"fetch", "origin"); err != nil {
 		return fmt.Errorf("fetching origin: %w", err)
+	}
+
+	if _, err := m.docker.SandboxExec(sandboxName, "git", "-C", SandboxWorkspace,
+		"clean", "-fdx", "-q"); err != nil {
+		return fmt.Errorf("cleaning workspace: %w", err)
 	}
 
 	if _, err := m.docker.SandboxExec(sandboxName, "git", "-C", SandboxWorkspace,
@@ -357,8 +364,9 @@ func (m *Manager) resetToDefaultBranch(sandboxName string) error {
 }
 
 // parseDefaultBranchFromSymref extracts the branch name from the output of
-// `git ls-remote --symref origin HEAD`. The first line is expected to be of
-// the form "ref: refs/heads/<branch>\tHEAD".
+// `git ls-remote --symref origin HEAD`. Scans all lines for one matching
+// `ref: refs/heads/<branch>\tHEAD` and returns the first hit; returns an
+// error if no matching line is found (e.g. remote with detached HEAD).
 func parseDefaultBranchFromSymref(output string) (string, error) {
 	for _, line := range strings.Split(output, "\n") {
 		const prefix = "ref: refs/heads/"
