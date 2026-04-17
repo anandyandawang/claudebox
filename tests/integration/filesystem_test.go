@@ -11,7 +11,7 @@ import (
 )
 
 func TestFilesystemLayout(t *testing.T) {
-	workspace := createTestWorkspace(t, "cb-fs-test")
+	workspace := createTestWorkspaceWithBareOrigin(t, "cb-fs-test")
 	buildTemplateImage(t, "jvm")
 	sb := createTestSandbox(t, "jvm", workspace)
 	defer cleanupSandbox(t, sb.name)
