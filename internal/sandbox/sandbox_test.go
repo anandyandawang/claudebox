@@ -545,3 +545,32 @@ func TestRemoveAll(t *testing.T) {
 		t.Errorf("RemoveAll: got %d, want 2", count)
 	}
 }
+
+func TestParseDefaultBranchFromSymref(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{"main", "ref: refs/heads/main\tHEAD\nabc123\tHEAD\n", "main", false},
+		{"master", "ref: refs/heads/master\tHEAD\nabc123\tHEAD\n", "master", false},
+		{"trailing newline only", "ref: refs/heads/develop\tHEAD\n", "develop", false},
+		{"no trailing newline", "ref: refs/heads/develop\tHEAD", "develop", false},
+		{"branch with slash", "ref: refs/heads/feature/foo\tHEAD\n", "feature/foo", false},
+		{"empty", "", "", true},
+		{"malformed", "not-a-ref-line\nblah\n", "", true},
+		{"ref prefix but missing branch", "ref: refs/heads/\tHEAD\n", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseDefaultBranchFromSymref(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("err = %v, wantErr = %v", err, tt.wantErr)
+			}
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

@@ -309,3 +309,22 @@ func (m *Manager) RemoveAll(workspacePrefix string) (int, error) {
 	}
 	return count, nil
 }
+
+// parseDefaultBranchFromSymref extracts the branch name from the output of
+// `git ls-remote --symref origin HEAD`. The first line is expected to be of
+// the form "ref: refs/heads/<branch>\tHEAD".
+func parseDefaultBranchFromSymref(output string) (string, error) {
+	for _, line := range strings.Split(output, "\n") {
+		const prefix = "ref: refs/heads/"
+		if !strings.HasPrefix(line, prefix) {
+			continue
+		}
+		rest := strings.TrimPrefix(line, prefix)
+		branch := strings.SplitN(rest, "\t", 2)[0]
+		if branch == "" {
+			continue
+		}
+		return branch, nil
+	}
+	return "", fmt.Errorf("could not parse default branch from ls-remote output: %q", output)
+}
