@@ -106,7 +106,7 @@ func createTestWorkspace(t *testing.T, dirname string) string {
 			t.Fatalf("git %v failed: %s", args, out)
 		}
 	}
-	run("init", "-q")
+	run("init", "-q", "--initial-branch=main")
 	os.WriteFile(filepath.Join(workspace, "testfile.txt"), []byte("test content"), 0o644)
 	run("add", ".")
 	run("commit", "-q", "-m", "init")
