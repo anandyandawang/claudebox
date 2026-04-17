@@ -619,9 +619,11 @@ func TestResetToDefaultBranch(t *testing.T) {
 		name     string
 		contains []string
 	}{
-		{"ls-remote first", []string{"ls-remote", "--symref", "origin", "HEAD"}},
+		{"ls-remote first", []string{"ls-remote", "--symref", "origin", "HEAD",
+			"credential.helper=!gh auth git-credential"}},
 		{"clean second", []string{"clean", "-fdx", "-q"}},
-		{"fetch third", []string{"fetch", "origin"}},
+		{"fetch third", []string{"fetch", "origin",
+			"credential.helper=!gh auth git-credential"}},
 		{"checkout -f -B fourth", []string{"checkout", "-f", "-B", "main", "origin/main"}},
 	}
 	for i, chk := range checks {
