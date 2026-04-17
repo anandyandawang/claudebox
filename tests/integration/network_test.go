@@ -11,7 +11,7 @@ import (
 )
 
 func TestNetworkPolicy(t *testing.T) {
-	workspace := createTestWorkspace(t, "cb-net-test")
+	workspace := createTestWorkspaceWithBareOrigin(t, "cb-net-test")
 	buildTemplateImage(t, "jvm")
 	sb := createTestSandbox(t, "jvm", workspace)
 	defer cleanupSandbox(t, sb.name)
@@ -36,7 +36,7 @@ func TestNetworkPolicy(t *testing.T) {
 }
 
 func TestNoNetworkPolicyAllowsAll(t *testing.T) {
-	workspace := createTestWorkspace(t, "cb-nofilt-test")
+	workspace := createTestWorkspaceWithBareOrigin(t, "cb-nofilt-test")
 
 	tmpDir := t.TempDir()
 	src, _ := os.ReadFile(templatesDir + "/jvm/Dockerfile")

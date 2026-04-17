@@ -11,7 +11,7 @@ import (
 )
 
 func TestFilesystemLayout(t *testing.T) {
-	workspace := createTestWorkspace(t, "cb-fs-test")
+	workspace := createTestWorkspaceWithBareOrigin(t, "cb-fs-test")
 	buildTemplateImage(t, "jvm")
 	sb := createTestSandbox(t, "jvm", workspace)
 	defer cleanupSandbox(t, sb.name)
@@ -30,6 +30,23 @@ func TestFilesystemLayout(t *testing.T) {
 		}
 		if strings.TrimSpace(branch) != sb.sandboxID {
 			t.Errorf("branch = %q, want sandbox ID %q", strings.TrimSpace(branch), sb.sandboxID)
+		}
+	})
+
+	t.Run("session branch matches origin/main tip", func(t *testing.T) {
+		sessionTip, err := testDocker.SandboxExec(sb.name, "git", "-C", sandbox.SandboxWorkspace,
+			"rev-parse", "HEAD")
+		if err != nil {
+			t.Fatal(err)
+		}
+		originTip, err := testDocker.SandboxExec(sb.name, "git", "-C", sandbox.SandboxWorkspace,
+			"rev-parse", "origin/main")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.TrimSpace(sessionTip) != strings.TrimSpace(originTip) {
+			t.Errorf("session HEAD %q != origin/main %q",
+				strings.TrimSpace(sessionTip), strings.TrimSpace(originTip))
 		}
 	})
 
@@ -185,4 +202,26 @@ sudo chmod +x "$CLAUDE_BIN"`)
 		}
 	})
 
+}
+
+func TestCreateAbortsWithoutOrigin(t *testing.T) {
+	workspace := createTestWorkspace(t, "cb-no-origin-test") // no remote configured
+	buildTemplateImage(t, "jvm")
+
+	sandboxID := sandbox.GenerateSandboxID("jvm")
+	name := sandbox.GenerateSandboxName(workspace, sandboxID)
+	defer cleanupSandbox(t, name)
+
+	err := testManager.Create(name, sandbox.CreateOpts{
+		ImageName: "jvm-sandbox",
+		Workspace: workspace,
+		ClaudeDir: os.Getenv("HOME") + "/.claude",
+		SessionID: sandboxID,
+	})
+	if err == nil {
+		t.Fatal("expected Create to abort when workspace has no origin remote")
+	}
+	if !strings.Contains(err.Error(), "determining default branch") {
+		t.Errorf("error should mention default branch discovery, got: %v", err)
+	}
 }

@@ -12,7 +12,7 @@ func TestImageBuilds(t *testing.T) {
 }
 
 func TestSandboxNameFormat(t *testing.T) {
-	workspace := createTestWorkspace(t, "cb-create-test")
+	workspace := createTestWorkspaceWithBareOrigin(t, "cb-create-test")
 	buildTemplateImage(t, "jvm")
 	sb := createTestSandbox(t, "jvm", workspace)
 	defer cleanupSandbox(t, sb.name)

@@ -18,6 +18,10 @@ func (m *mockDocker) SandboxExec(name string, args ...string) (string, error) {
 	m.execCalls = append(m.execCalls, append([]string{name}, args...))
 	return "", nil
 }
+func (m *mockDocker) SandboxExecEnv(name string, _ []string, args ...string) (string, error) {
+	m.execCalls = append(m.execCalls, append([]string{name}, args...))
+	return "", nil
+}
 func (m *mockDocker) SandboxLs(string) ([]docker.SandboxInfo, error) { return nil, nil }
 func (m *mockDocker) SandboxRm(string) error                         { return nil }
 func (m *mockDocker) SandboxExecWithStdin(io.Reader, string, ...string) error { return nil }

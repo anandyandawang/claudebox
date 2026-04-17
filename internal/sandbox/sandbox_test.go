@@ -14,17 +14,19 @@ import (
 type call struct {
 	method string
 	args   []string
+	env    []string // set only for SandboxExecEnv calls
 }
 
 type mockDocker struct {
 	calls    []call
 	execOut  map[string]string
+	execErrs map[string]error // if joined args contain key, return this error
 	lsOutput []docker.SandboxInfo
 	failOn   string
 }
 
 func (m *mockDocker) record(method string, args ...string) {
-	m.calls = append(m.calls, call{method, args})
+	m.calls = append(m.calls, call{method: method, args: args})
 }
 
 func (m *mockDocker) Build(tag, contextDir string) error {
@@ -47,8 +49,37 @@ func (m *mockDocker) SandboxRun(name string, args ...string) error {
 func (m *mockDocker) SandboxExec(name string, args ...string) (string, error) {
 	m.record("SandboxExec", append([]string{name}, args...)...)
 	if m.failOn == "SandboxExec" { return "", fmt.Errorf("exec failed") }
+	joined := strings.Join(args, " ")
+	for substr, err := range m.execErrs {
+		if strings.Contains(joined, substr) {
+			return "", err
+		}
+	}
 	for prefix, out := range m.execOut {
-		if strings.Contains(strings.Join(args, " "), prefix) {
+		if strings.Contains(joined, prefix) {
+			return out, nil
+		}
+	}
+	return "", nil
+}
+
+func (m *mockDocker) SandboxExecEnv(name string, env []string, args ...string) (string, error) {
+	m.calls = append(m.calls, call{
+		method: "SandboxExecEnv",
+		args:   append([]string{name}, args...),
+		env:    env,
+	})
+	if m.failOn == "SandboxExec" {
+		return "", fmt.Errorf("exec failed")
+	}
+	joined := strings.Join(args, " ")
+	for substr, err := range m.execErrs {
+		if strings.Contains(joined, substr) {
+			return "", err
+		}
+	}
+	for prefix, out := range m.execOut {
+		if strings.Contains(joined, prefix) {
 			return out, nil
 		}
 	}
@@ -128,7 +159,11 @@ func TestBuildImage(t *testing.T) {
 }
 
 func TestCreate(t *testing.T) {
-	m := &mockDocker{}
+	m := &mockDocker{
+		execOut: map[string]string{
+			"ls-remote --symref": "ref: refs/heads/main\tHEAD\n",
+		},
+	}
 	mgr := NewManager(m, "/templates")
 
 	// Create real workspace dir for tar to work
@@ -144,7 +179,7 @@ func TestCreate(t *testing.T) {
 		ImageName: "jvm-sandbox",
 		Workspace: workspace,
 		ClaudeDir: claudeDir,
-		SessionID: "sandbox-20260325-120000",
+		SessionID: "0325-mochi-a1",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -184,9 +219,12 @@ func TestCreate(t *testing.T) {
 		t.Errorf("expected at least 2 SandboxExecWithStdin calls (workspace + config), got %d", len(stdinCalls))
 	}
 
-	// Should have separate SandboxExec calls for git clean and git checkout
-	// (split to avoid shell injection via SessionID)
-	var hasClean, hasCheckout bool
+	// Should have SandboxExec calls for git clean (inside resetToDefaultBranch)
+	// and the session-branch `git checkout -b <sessionID>` (in Create, separate
+	// to avoid shell injection via SessionID). The resetToDefaultBranch step
+	// also emits a `checkout -f -B <default>` call, so the session-branch
+	// check asserts on the sessionID to avoid being satisfied by that one.
+	var hasClean, hasSessionCheckout bool
 	for _, c := range m.calls {
 		if c.method != "SandboxExec" {
 			continue
@@ -195,15 +233,15 @@ func TestCreate(t *testing.T) {
 		if strings.Contains(joined, "clean") {
 			hasClean = true
 		}
-		if strings.Contains(joined, "checkout") {
-			hasCheckout = true
+		if strings.Contains(joined, "checkout -b 0325-mochi-a1") {
+			hasSessionCheckout = true
 		}
 	}
 	if !hasClean {
 		t.Error("expected SandboxExec call with git clean")
 	}
-	if !hasCheckout {
-		t.Error("expected SandboxExec call with git checkout")
+	if !hasSessionCheckout {
+		t.Error("expected SandboxExec call with 'checkout -b 0325-mochi-a1' for session branch")
 	}
 }
 
@@ -219,7 +257,7 @@ func TestCreateFailsOnExecWithStdin(t *testing.T) {
 		ImageName: "jvm-sandbox",
 		Workspace: workspace,
 		ClaudeDir: claudeDir,
-		SessionID: "sandbox-20260325-120000",
+		SessionID: "0325-mochi-a1",
 	})
 	if err == nil {
 		t.Fatal("expected error when SandboxExecWithStdin fails")
@@ -240,7 +278,7 @@ func TestCreateFailsOnSandboxCreate(t *testing.T) {
 		ImageName: "jvm-sandbox",
 		Workspace: workspace,
 		ClaudeDir: claudeDir,
-		SessionID: "sandbox-20260325-120000",
+		SessionID: "0325-mochi-a1",
 	})
 	if err == nil {
 		t.Fatal("expected error when SandboxCreate fails")
@@ -279,7 +317,11 @@ func TestRewriteHostPaths(t *testing.T) {
 }
 
 func TestCreateCallsRewriteHostPaths(t *testing.T) {
-	m := &mockDocker{}
+	m := &mockDocker{
+		execOut: map[string]string{
+			"ls-remote --symref": "ref: refs/heads/main\tHEAD\n",
+		},
+	}
 	mgr := NewManager(m, "/templates")
 
 	workspace := t.TempDir()
@@ -292,7 +334,7 @@ func TestCreateCallsRewriteHostPaths(t *testing.T) {
 		ImageName: "jvm-sandbox",
 		Workspace: workspace,
 		ClaudeDir: claudeDir,
-		SessionID: "sandbox-20260325-120000",
+		SessionID: "0325-mochi-a1",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -318,7 +360,11 @@ func TestRefreshConfigCallsRewriteHostPaths(t *testing.T) {
 }
 
 func TestCreateFailsOnGitSetup(t *testing.T) {
-	m := &mockDocker{failOn: "SandboxExec"}
+	m := &mockDocker{
+		execErrs: map[string]error{
+			"ls-remote --symref": fmt.Errorf("no such remote: origin"),
+		},
+	}
 	mgr := NewManager(m, "/templates")
 
 	workspace := t.TempDir()
@@ -329,10 +375,13 @@ func TestCreateFailsOnGitSetup(t *testing.T) {
 		ImageName: "jvm-sandbox",
 		Workspace: workspace,
 		ClaudeDir: claudeDir,
-		SessionID: "sandbox-20260325-120000",
+		SessionID: "0325-mochi-a1",
 	})
 	if err == nil {
 		t.Fatal("expected error when SandboxExec fails")
+	}
+	if !strings.Contains(err.Error(), "resetting workspace") {
+		t.Errorf("error should mention resetting workspace, got: %v", err)
 	}
 }
 
@@ -543,5 +592,195 @@ func TestRemoveAll(t *testing.T) {
 	}
 	if count != 2 {
 		t.Errorf("RemoveAll: got %d, want 2", count)
+	}
+}
+
+func TestResetToDefaultBranch(t *testing.T) {
+	m := &mockDocker{
+		execOut: map[string]string{
+			"ls-remote --symref": "ref: refs/heads/main\tHEAD\nabc123\tHEAD\n",
+		},
+	}
+	mgr := NewManager(m, "/templates")
+
+	if err := mgr.resetToDefaultBranch("test-sandbox"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify the command sequence issued via SandboxExec and SandboxExecEnv.
+	var execArgs [][]string
+	for _, c := range m.calls {
+		if c.method == "SandboxExec" || c.method == "SandboxExecEnv" {
+			execArgs = append(execArgs, c.args)
+		}
+	}
+	if len(execArgs) != 4 {
+		t.Fatalf("expected 4 exec-like calls, got %d: %v", len(execArgs), execArgs)
+	}
+
+	checks := []struct {
+		name     string
+		contains []string
+	}{
+		{"ls-remote first", []string{"ls-remote", "--symref", "origin", "HEAD",
+			"credential.helper=!gh auth git-credential"}},
+		{"fetch second", []string{"fetch", "origin",
+			"credential.helper=!gh auth git-credential"}},
+		{"clean third", []string{"clean", "-fdx", "-q"}},
+		{"checkout -f -B fourth", []string{"checkout", "-f", "-B", "main", "origin/main"}},
+	}
+	for i, chk := range checks {
+		joined := strings.Join(execArgs[i], " ")
+		for _, want := range chk.contains {
+			if !strings.Contains(joined, want) {
+				t.Errorf("%s: args[%d]=%q missing %q", chk.name, i, joined, want)
+			}
+		}
+	}
+}
+
+func TestResetToDefaultBranchLsRemoteFails(t *testing.T) {
+	m := &mockDocker{
+		execErrs: map[string]error{
+			"ls-remote --symref": fmt.Errorf("no such remote: origin"),
+		},
+	}
+	mgr := NewManager(m, "/templates")
+
+	err := mgr.resetToDefaultBranch("test-sandbox")
+	if err == nil {
+		t.Fatal("expected error when ls-remote fails")
+	}
+	if !strings.Contains(err.Error(), "determining default branch") {
+		t.Errorf("error should mention default branch discovery, got: %v", err)
+	}
+}
+
+func TestResetToDefaultBranchMalformedLsRemote(t *testing.T) {
+	m := &mockDocker{
+		execOut: map[string]string{"ls-remote --symref": "garbage\n"},
+	}
+	mgr := NewManager(m, "/templates")
+
+	err := mgr.resetToDefaultBranch("test-sandbox")
+	if err == nil {
+		t.Fatal("expected error when ls-remote output is malformed")
+	}
+	if !strings.Contains(err.Error(), "determining default branch") {
+		t.Errorf("error should mention default branch discovery, got: %v", err)
+	}
+}
+
+func TestResetToDefaultBranchFetchFails(t *testing.T) {
+	m := &mockDocker{
+		execOut: map[string]string{
+			"ls-remote --symref": "ref: refs/heads/main\tHEAD\n",
+		},
+		execErrs: map[string]error{
+			"fetch origin": fmt.Errorf("network error"),
+		},
+	}
+	mgr := NewManager(m, "/templates")
+
+	err := mgr.resetToDefaultBranch("test-sandbox")
+	if err == nil {
+		t.Fatal("expected error when fetch fails")
+	}
+	if !strings.Contains(err.Error(), "fetching origin") {
+		t.Errorf("error should mention fetching origin, got: %v", err)
+	}
+}
+
+func TestResetToDefaultBranchCheckoutFails(t *testing.T) {
+	m := &mockDocker{
+		execOut: map[string]string{
+			"ls-remote --symref": "ref: refs/heads/main\tHEAD\n",
+		},
+		execErrs: map[string]error{
+			"checkout -f -B": fmt.Errorf("checkout failed"),
+		},
+	}
+	mgr := NewManager(m, "/templates")
+
+	err := mgr.resetToDefaultBranch("test-sandbox")
+	if err == nil {
+		t.Fatal("expected error when checkout fails")
+	}
+	if !strings.Contains(err.Error(), "resetting to origin/main") {
+		t.Errorf("error should mention resetting to origin/main, got: %v", err)
+	}
+}
+
+func TestResetToDefaultBranchPassesGithubToken(t *testing.T) {
+	t.Run("token set on host passes through", func(t *testing.T) {
+		t.Setenv("GITHUB_TOKEN", "test-token-value")
+		m := &mockDocker{
+			execOut: map[string]string{"ls-remote --symref": "ref: refs/heads/main\tHEAD\n"},
+		}
+		mgr := NewManager(m, "/templates")
+		if err := mgr.resetToDefaultBranch("test-sandbox"); err != nil {
+			t.Fatal(err)
+		}
+
+		var envCalls []call
+		for _, c := range m.calls {
+			if c.method == "SandboxExecEnv" {
+				envCalls = append(envCalls, c)
+			}
+		}
+		if len(envCalls) != 2 {
+			t.Fatalf("expected 2 SandboxExecEnv calls (ls-remote, fetch), got %d", len(envCalls))
+		}
+		for i, c := range envCalls {
+			if len(c.env) != 1 || c.env[0] != "GITHUB_TOKEN" {
+				t.Errorf("envCalls[%d]: want env=[GITHUB_TOKEN], got %v", i, c.env)
+			}
+		}
+	})
+
+	t.Run("no token on host means no env passed", func(t *testing.T) {
+		t.Setenv("GITHUB_TOKEN", "")
+		m := &mockDocker{
+			execOut: map[string]string{"ls-remote --symref": "ref: refs/heads/main\tHEAD\n"},
+		}
+		mgr := NewManager(m, "/templates")
+		if err := mgr.resetToDefaultBranch("test-sandbox"); err != nil {
+			t.Fatal(err)
+		}
+
+		for _, c := range m.calls {
+			if c.method == "SandboxExecEnv" && len(c.env) != 0 {
+				t.Errorf("expected empty env when GITHUB_TOKEN unset, got %v", c.env)
+			}
+		}
+	})
+}
+
+func TestParseDefaultBranchFromSymref(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{"main", "ref: refs/heads/main\tHEAD\nabc123\tHEAD\n", "main", false},
+		{"master", "ref: refs/heads/master\tHEAD\nabc123\tHEAD\n", "master", false},
+		{"trailing newline only", "ref: refs/heads/develop\tHEAD\n", "develop", false},
+		{"no trailing newline", "ref: refs/heads/develop\tHEAD", "develop", false},
+		{"branch with slash", "ref: refs/heads/feature/foo\tHEAD\n", "feature/foo", false},
+		{"empty", "", "", true},
+		{"malformed", "not-a-ref-line\nblah\n", "", true},
+		{"ref prefix but missing branch", "ref: refs/heads/\tHEAD\n", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseDefaultBranchFromSymref(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("err = %v, wantErr = %v", err, tt.wantErr)
+			}
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

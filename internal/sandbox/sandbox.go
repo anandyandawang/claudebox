@@ -57,6 +57,9 @@ func (m *Manager) BuildImage(template string) (string, error) {
 }
 
 // Create creates a sandbox with tar-piped workspace and config, no host mounts.
+// After tar-pipe, the workspace is force-reset to origin/<default> via
+// resetToDefaultBranch, then a session branch is created from that state. The
+// workspace must have a reachable `origin` remote; Create aborts otherwise.
 func (m *Manager) Create(sandboxName string, opts CreateOpts) error {
 	// Mount a shared empty dir instead of the real workspace. The sandbox
 	// gets its files via tar-pipe. VirtioFS writes go to this empty dir,
@@ -84,8 +87,8 @@ func (m *Manager) Create(sandboxName string, opts CreateOpts) error {
 	if err := m.tarPipeClaudeConfig(sandboxName, opts.ClaudeDir); err != nil {
 		return fmt.Errorf("copying claude config: %w", err)
 	}
-	if _, err := m.docker.SandboxExec(sandboxName, "git", "-C", SandboxWorkspace, "clean", "-fdx", "-q"); err != nil {
-		return fmt.Errorf("cleaning workspace: %w", err)
+	if err := m.resetToDefaultBranch(sandboxName); err != nil {
+		return fmt.Errorf("resetting workspace: %w", err)
 	}
 	if _, err := m.docker.SandboxExec(sandboxName, "git", "-C", SandboxWorkspace, "checkout", "-b", opts.SessionID); err != nil {
 		return fmt.Errorf("creating session branch: %w", err)
@@ -308,4 +311,74 @@ func (m *Manager) RemoveAll(workspacePrefix string) (int, error) {
 		count++
 	}
 	return count, nil
+}
+
+// resetToDefaultBranch discovers origin's default branch, fetches, and force-resets
+// the sandbox's working tree to origin/<default>. HEAD ends up on <default>.
+// Silently discards any local modifications and untracked files carried in via
+// tar-pipe.
+//
+// Order: ls-remote → fetch → clean → checkout. Network calls happen before any
+// working-tree mutation, so an auth/network failure leaves the tar-piped state
+// intact rather than a half-cleaned tree.
+func (m *Manager) resetToDefaultBranch(sandboxName string) error {
+	var env []string
+	if os.Getenv("GITHUB_TOKEN") != "" {
+		env = []string{"GITHUB_TOKEN"}
+	}
+	// The sandbox image ships a credential.https://github.com.helper=gh-token
+	// config that does NOT consult GITHUB_TOKEN. Override with
+	// `!gh auth git-credential`, which delegates to gh proper — gh respects
+	// GITHUB_TOKEN when set.
+	const ghCredHelper = "credential.helper=!gh auth git-credential"
+
+	out, err := m.docker.SandboxExecEnv(sandboxName, env, "git",
+		"-c", ghCredHelper,
+		"-C", SandboxWorkspace,
+		"ls-remote", "--symref", "origin", "HEAD")
+	if err != nil {
+		return fmt.Errorf("determining default branch: %w", err)
+	}
+	branch, err := parseDefaultBranchFromSymref(out)
+	if err != nil {
+		return fmt.Errorf("determining default branch: %w", err)
+	}
+
+	if _, err := m.docker.SandboxExecEnv(sandboxName, env, "git",
+		"-c", ghCredHelper,
+		"-C", SandboxWorkspace,
+		"fetch", "origin"); err != nil {
+		return fmt.Errorf("fetching origin: %w", err)
+	}
+
+	if _, err := m.docker.SandboxExec(sandboxName, "git", "-C", SandboxWorkspace,
+		"clean", "-fdx", "-q"); err != nil {
+		return fmt.Errorf("cleaning workspace: %w", err)
+	}
+
+	if _, err := m.docker.SandboxExec(sandboxName, "git", "-C", SandboxWorkspace,
+		"checkout", "-f", "-B", branch, "origin/"+branch); err != nil {
+		return fmt.Errorf("resetting to origin/%s: %w", branch, err)
+	}
+	return nil
+}
+
+// parseDefaultBranchFromSymref extracts the branch name from the output of
+// `git ls-remote --symref origin HEAD`. Scans all lines for one matching
+// `ref: refs/heads/<branch>\tHEAD` and returns the first hit; returns an
+// error if no matching line is found (e.g. remote with detached HEAD).
+func parseDefaultBranchFromSymref(output string) (string, error) {
+	for _, line := range strings.Split(output, "\n") {
+		const prefix = "ref: refs/heads/"
+		if !strings.HasPrefix(line, prefix) {
+			continue
+		}
+		rest := strings.TrimPrefix(line, prefix)
+		branch := strings.SplitN(rest, "\t", 2)[0]
+		if branch == "" {
+			continue
+		}
+		return branch, nil
+	}
+	return "", fmt.Errorf("could not parse default branch from ls-remote output: %q", output)
 }
