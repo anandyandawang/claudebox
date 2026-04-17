@@ -195,8 +195,8 @@ func TestCreate(t *testing.T) {
 		t.Errorf("expected at least 2 SandboxExecWithStdin calls (workspace + config), got %d", len(stdinCalls))
 	}
 
-	// Should have separate SandboxExec calls for git clean and git checkout
-	// (split to avoid shell injection via SessionID)
+	// Should have SandboxExec calls for git clean (inside resetToDefaultBranch)
+	// and git checkout (in Create, separate to avoid shell injection via SessionID).
 	var hasClean, hasCheckout bool
 	for _, c := range m.calls {
 		if c.method != "SandboxExec" {
@@ -333,7 +333,11 @@ func TestRefreshConfigCallsRewriteHostPaths(t *testing.T) {
 }
 
 func TestCreateFailsOnGitSetup(t *testing.T) {
-	m := &mockDocker{failOn: "SandboxExec"}
+	m := &mockDocker{
+		execErrs: map[string]error{
+			"ls-remote --symref": fmt.Errorf("no such remote: origin"),
+		},
+	}
 	mgr := NewManager(m, "/templates")
 
 	workspace := t.TempDir()
@@ -348,6 +352,9 @@ func TestCreateFailsOnGitSetup(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error when SandboxExec fails")
+	}
+	if !strings.Contains(err.Error(), "resetting workspace") {
+		t.Errorf("error should mention resetting workspace, got: %v", err)
 	}
 }
 
