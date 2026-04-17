@@ -57,7 +57,7 @@ In `internal/environment/environment_test.go`, using the existing `mockDocker` a
 
 ### Integration tests
 
-In `tests/integration/filesystem_test.go`, add two subtests under `TestFilesystemLayout`. Both close a pre-existing gap: `environment.Setup()` runs in every integration test via `createTestSandbox`, but nothing today verifies its side effects inside the container.
+In `tests/integration/filesystem_test.go`, add three subtests under `TestFilesystemLayout`. All three close a pre-existing gap: `environment.Setup()` runs in every integration test via `createTestSandbox`, but nothing today verifies its side effects inside the container.
 
 1. **`host git identity imported into sandbox`**
    - Read `git config --global user.name` and `user.email` on the host with `exec.Command`.
@@ -69,7 +69,15 @@ In `tests/integration/filesystem_test.go`, add two subtests under `TestFilesyste
    - Inside the sandbox: source `/etc/sandbox-persistent.sh` in a subshell and print the value, e.g. `sh -c '. /etc/sandbox-persistent.sh && printf %s "$GITHUB_USERNAME"'`.
    - Assert the trimmed output equals the host value.
 
-Together these validate that both sides of `environment.Setup()` — the pre-existing env-var contract and the new git-identity contract — actually land inside the container end-to-end.
+3. **`JAVA_TOOL_OPTIONS written when HTTPS_PROXY is set on host`**
+   - If `HTTPS_PROXY` is not set on the host, `t.Skip("HTTPS_PROXY not set on host")`.
+   - Parse the expected proxy host and port from the host's `HTTPS_PROXY` (matching the `sed` transforms in `environment.go`).
+   - Inside the sandbox: source `/etc/sandbox-persistent.sh` in a subshell and print `$JAVA_TOOL_OPTIONS`.
+   - Assert the output contains `-Dhttps.proxyHost=<expected>` and `-Dhttps.proxyPort=<expected>` (and the corresponding `http.proxyHost`/`http.proxyPort`).
+
+Together these validate the observable contracts of `environment.Setup()` — the pre-existing env-var contract (`GITHUB_USERNAME`), the new git-identity contract, and the JVM proxy contract — by actually reading from inside the container.
+
+**Not covered at integration level:** the keytool CA import branch. On a fresh `jvm` template image, `/usr/local/share/ca-certificates/` is empty so the branch never fires, and adding integration coverage would require planting a fake CA cert into the running sandbox before re-invoking setup — more scaffolding than the coverage earns for a branch that is already guarded by an `|| true`. Unit-level coverage in `environment_test.go` remains the mechanism for that path.
 
 ## Side effects
 
