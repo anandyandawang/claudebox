@@ -19,6 +19,7 @@ type call struct {
 type mockDocker struct {
 	calls    []call
 	execOut  map[string]string
+	execErrs map[string]error // if joined args contain key, return this error
 	lsOutput []docker.SandboxInfo
 	failOn   string
 }
@@ -47,8 +48,14 @@ func (m *mockDocker) SandboxRun(name string, args ...string) error {
 func (m *mockDocker) SandboxExec(name string, args ...string) (string, error) {
 	m.record("SandboxExec", append([]string{name}, args...)...)
 	if m.failOn == "SandboxExec" { return "", fmt.Errorf("exec failed") }
+	joined := strings.Join(args, " ")
+	for substr, err := range m.execErrs {
+		if strings.Contains(joined, substr) {
+			return "", err
+		}
+	}
 	for prefix, out := range m.execOut {
-		if strings.Contains(strings.Join(args, " "), prefix) {
+		if strings.Contains(joined, prefix) {
 			return out, nil
 		}
 	}
