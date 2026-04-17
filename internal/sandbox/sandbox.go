@@ -315,7 +315,11 @@ func (m *Manager) RemoveAll(workspacePrefix string) (int, error) {
 // Silently discards any local modifications and untracked files carried in via
 // tar-pipe.
 func (m *Manager) resetToDefaultBranch(sandboxName string) error {
-	out, err := m.docker.SandboxExec(sandboxName, "git", "-C", SandboxWorkspace,
+	var env []string
+	if os.Getenv("GITHUB_TOKEN") != "" {
+		env = []string{"GITHUB_TOKEN"}
+	}
+	out, err := m.docker.SandboxExecEnv(sandboxName, env, "git", "-C", SandboxWorkspace,
 		"ls-remote", "--symref", "origin", "HEAD")
 	if err != nil {
 		return fmt.Errorf("determining default branch: %w", err)
@@ -330,7 +334,7 @@ func (m *Manager) resetToDefaultBranch(sandboxName string) error {
 		return fmt.Errorf("cleaning workspace: %w", err)
 	}
 
-	if _, err := m.docker.SandboxExec(sandboxName, "git", "-C", SandboxWorkspace,
+	if _, err := m.docker.SandboxExecEnv(sandboxName, env, "git", "-C", SandboxWorkspace,
 		"fetch", "origin"); err != nil {
 		return fmt.Errorf("fetching origin: %w", err)
 	}

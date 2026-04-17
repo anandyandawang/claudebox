@@ -36,6 +36,12 @@ func (m *mockDocker) SandboxExec(_ string, _ ...string) (string, error) {
 	}
 	return "", nil
 }
+func (m *mockDocker) SandboxExecEnv(_ string, _ []string, _ ...string) (string, error) {
+	if m.failExec {
+		return "", fmt.Errorf("exec failed")
+	}
+	return "", nil
+}
 func (m *mockDocker) SandboxLs(filter string) ([]docker.SandboxInfo, error) {
 	if filter == "" {
 		return m.lsOutput, nil

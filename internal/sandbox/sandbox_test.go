@@ -14,6 +14,7 @@ import (
 type call struct {
 	method string
 	args   []string
+	env    []string // set only for SandboxExecEnv calls
 }
 
 type mockDocker struct {
@@ -25,7 +26,7 @@ type mockDocker struct {
 }
 
 func (m *mockDocker) record(method string, args ...string) {
-	m.calls = append(m.calls, call{method, args})
+	m.calls = append(m.calls, call{method: method, args: args})
 }
 
 func (m *mockDocker) Build(tag, contextDir string) error {
@@ -48,6 +49,29 @@ func (m *mockDocker) SandboxRun(name string, args ...string) error {
 func (m *mockDocker) SandboxExec(name string, args ...string) (string, error) {
 	m.record("SandboxExec", append([]string{name}, args...)...)
 	if m.failOn == "SandboxExec" { return "", fmt.Errorf("exec failed") }
+	joined := strings.Join(args, " ")
+	for substr, err := range m.execErrs {
+		if strings.Contains(joined, substr) {
+			return "", err
+		}
+	}
+	for prefix, out := range m.execOut {
+		if strings.Contains(joined, prefix) {
+			return out, nil
+		}
+	}
+	return "", nil
+}
+
+func (m *mockDocker) SandboxExecEnv(name string, env []string, args ...string) (string, error) {
+	m.calls = append(m.calls, call{
+		method: "SandboxExecEnv",
+		args:   append([]string{name}, args...),
+		env:    env,
+	})
+	if m.failOn == "SandboxExec" {
+		return "", fmt.Errorf("exec failed")
+	}
 	joined := strings.Join(args, " ")
 	for substr, err := range m.execErrs {
 		if strings.Contains(joined, substr) {
@@ -580,15 +604,15 @@ func TestResetToDefaultBranch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Verify the command sequence issued via SandboxExec.
+	// Verify the command sequence issued via SandboxExec and SandboxExecEnv.
 	var execArgs [][]string
 	for _, c := range m.calls {
-		if c.method == "SandboxExec" {
+		if c.method == "SandboxExec" || c.method == "SandboxExecEnv" {
 			execArgs = append(execArgs, c.args)
 		}
 	}
 	if len(execArgs) != 4 {
-		t.Fatalf("expected 4 SandboxExec calls, got %d: %v", len(execArgs), execArgs)
+		t.Fatalf("expected 4 exec-like calls, got %d: %v", len(execArgs), execArgs)
 	}
 
 	checks := []struct {
@@ -680,6 +704,51 @@ func TestResetToDefaultBranchCheckoutFails(t *testing.T) {
 	if !strings.Contains(err.Error(), "resetting to origin/main") {
 		t.Errorf("error should mention resetting to origin/main, got: %v", err)
 	}
+}
+
+func TestResetToDefaultBranchPassesGithubToken(t *testing.T) {
+	t.Run("token set on host passes through", func(t *testing.T) {
+		t.Setenv("GITHUB_TOKEN", "test-token-value")
+		m := &mockDocker{
+			execOut: map[string]string{"ls-remote --symref": "ref: refs/heads/main\tHEAD\n"},
+		}
+		mgr := NewManager(m, "/templates")
+		if err := mgr.resetToDefaultBranch("test-sandbox"); err != nil {
+			t.Fatal(err)
+		}
+
+		var envCalls []call
+		for _, c := range m.calls {
+			if c.method == "SandboxExecEnv" {
+				envCalls = append(envCalls, c)
+			}
+		}
+		if len(envCalls) != 2 {
+			t.Fatalf("expected 2 SandboxExecEnv calls (ls-remote, fetch), got %d", len(envCalls))
+		}
+		for i, c := range envCalls {
+			if len(c.env) != 1 || c.env[0] != "GITHUB_TOKEN" {
+				t.Errorf("envCalls[%d]: want env=[GITHUB_TOKEN], got %v", i, c.env)
+			}
+		}
+	})
+
+	t.Run("no token on host means no env passed", func(t *testing.T) {
+		t.Setenv("GITHUB_TOKEN", "")
+		m := &mockDocker{
+			execOut: map[string]string{"ls-remote --symref": "ref: refs/heads/main\tHEAD\n"},
+		}
+		mgr := NewManager(m, "/templates")
+		if err := mgr.resetToDefaultBranch("test-sandbox"); err != nil {
+			t.Fatal(err)
+		}
+
+		for _, c := range m.calls {
+			if c.method == "SandboxExecEnv" && len(c.env) != 0 {
+				t.Errorf("expected empty env when GITHUB_TOKEN unset, got %v", c.env)
+			}
+		}
+	})
 }
 
 func TestParseDefaultBranchFromSymref(t *testing.T) {

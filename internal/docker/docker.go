@@ -13,6 +13,10 @@ type Docker interface {
 	SandboxCreate(name string, opts SandboxCreateOpts) error
 	SandboxRun(name string, args ...string) error
 	SandboxExec(name string, args ...string) (string, error)
+	// SandboxExecEnv runs docker sandbox exec with one or more env variables passed
+	// through via -e. Each entry in env should be either "KEY" (pass through from
+	// the current process env) or "KEY=VALUE" (explicit value).
+	SandboxExecEnv(name string, env []string, args ...string) (string, error)
 	SandboxExecWithStdin(r io.Reader, name string, args ...string) error
 	SandboxLs(filter string) ([]SandboxInfo, error)
 	SandboxRm(name string) error
@@ -71,6 +75,21 @@ func (c *Client) SandboxRun(name string, args ...string) error {
 
 func (c *Client) SandboxExec(name string, args ...string) (string, error) {
 	cmdArgs := append([]string{"sandbox", "exec", name}, args...)
+	cmd := c.newCmd("docker", cmdArgs...)
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func (c *Client) SandboxExecEnv(name string, env []string, args ...string) (string, error) {
+	cmdArgs := []string{"sandbox", "exec"}
+	for _, e := range env {
+		cmdArgs = append(cmdArgs, "-e", e)
+	}
+	cmdArgs = append(cmdArgs, name)
+	cmdArgs = append(cmdArgs, args...)
 	cmd := c.newCmd("docker", cmdArgs...)
 	out, err := cmd.Output()
 	if err != nil {
