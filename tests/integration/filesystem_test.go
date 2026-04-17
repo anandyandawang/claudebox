@@ -203,3 +203,25 @@ sudo chmod +x "$CLAUDE_BIN"`)
 	})
 
 }
+
+func TestCreateAbortsWithoutOrigin(t *testing.T) {
+	workspace := createTestWorkspace(t, "cb-no-origin-test") // no remote configured
+	buildTemplateImage(t, "jvm")
+
+	sandboxID := sandbox.GenerateSandboxID("jvm")
+	name := sandbox.GenerateSandboxName(workspace, sandboxID)
+	defer cleanupSandbox(t, name)
+
+	err := testManager.Create(name, sandbox.CreateOpts{
+		ImageName: "jvm-sandbox",
+		Workspace: workspace,
+		ClaudeDir: os.Getenv("HOME") + "/.claude",
+		SessionID: sandboxID,
+	})
+	if err == nil {
+		t.Fatal("expected Create to abort when workspace has no origin remote")
+	}
+	if !strings.Contains(err.Error(), "determining default branch") {
+		t.Errorf("error should mention default branch discovery, got: %v", err)
+	}
+}
