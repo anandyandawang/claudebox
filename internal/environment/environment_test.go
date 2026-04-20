@@ -59,6 +59,7 @@ func hasAnyGitConfigCall(calls [][]string, key string) bool {
 func TestSetupExportsGitHubUsername(t *testing.T) {
 	md := &mockDocker{}
 	t.Setenv("GITHUB_USERNAME", "testuser")
+	withGitIdentity(t, "", "")
 
 	if err := Setup(md, "my-sandbox"); err != nil {
 		t.Fatal(err)
@@ -76,6 +77,7 @@ func TestSetupExportsGitHubUsername(t *testing.T) {
 
 func TestSetupConfiguresJVMProxy(t *testing.T) {
 	md := &mockDocker{}
+	withGitIdentity(t, "", "")
 	if err := Setup(md, "my-sandbox"); err != nil {
 		t.Fatal(err)
 	}
