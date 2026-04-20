@@ -4,10 +4,29 @@ import (
 	"claudebox/internal/docker"
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 )
 
+// readGitIdentityFn returns the host's --global user.name and user.email.
+// Empty strings on error or unset. Replaceable for testing.
+var readGitIdentityFn = readGitIdentity
+
+func readGitIdentity() (name, email string) {
+	return readGitConfigGlobal("user.name"), readGitConfigGlobal("user.email")
+}
+
+func readGitConfigGlobal(key string) string {
+	out, err := exec.Command("git", "config", "--global", key).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
 // Setup configures the sandbox environment:
-// exports GITHUB_USERNAME, configures JVM proxy, imports CA cert.
+// exports GITHUB_USERNAME, imports host git identity (user.name, user.email),
+// configures JVM proxy, imports CA cert.
 // Must only be called on create (fresh container); appends to /etc/sandbox-persistent.sh.
 func Setup(d docker.Docker, sandboxName string) error {
 	// Export GITHUB_USERNAME if set (GITHUB_TOKEN is auto-injected by `docker sandbox run`)
@@ -15,6 +34,20 @@ func Setup(d docker.Docker, sandboxName string) error {
 		script := fmt.Sprintf("printf 'export GITHUB_USERNAME=%%s\\n' %q >> /etc/sandbox-persistent.sh", username)
 		if _, err := d.SandboxExec(sandboxName, "sh", "-c", script); err != nil {
 			return fmt.Errorf("setting GITHUB_USERNAME: %w", err)
+		}
+	}
+
+	// Import host git identity into sandbox's global gitconfig.
+	// Silently skip either value if unset on host.
+	gitName, gitEmail := readGitIdentityFn()
+	if gitName != "" {
+		if _, err := d.SandboxExec(sandboxName, "git", "config", "--global", "user.name", gitName); err != nil {
+			return fmt.Errorf("setting git user.name: %w", err)
+		}
+	}
+	if gitEmail != "" {
+		if _, err := d.SandboxExec(sandboxName, "git", "config", "--global", "user.email", gitEmail); err != nil {
+			return fmt.Errorf("setting git user.email: %w", err)
 		}
 	}
 

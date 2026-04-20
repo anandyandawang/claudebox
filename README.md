@@ -82,9 +82,10 @@ If no `allowed-hosts.txt` is present, the sandbox has unrestricted network acces
 2. Creates a named sandbox with an empty temporary directory as the workspace mount — the real workspace files are streamed in separately, so the mount never contains sensitive data.
 3. Tar-pipes the repo into `/home/agent/workspace/` and Claude config files (`.claude.json`, `settings.json`, `plugins/`) into `/home/agent/.claude/` via `docker sandbox exec -i`.
 4. Creates a session branch in the workspace copy.
-5. Wraps the `claude` binary so Claude Code's project directory is the local copy — all tools (Edit, Read, Glob, Bash) operate on the same files.
-6. Applies network restrictions if `allowed-hosts.txt` exists (with verification).
-7. Runs Claude Code inside the sandbox with `--dangerously-skip-permissions`.
+5. Imports host state into the sandbox: git identity (`user.name`, `user.email`) from your global gitconfig, `GITHUB_USERNAME` env var if set, and JVM proxy configuration when `HTTPS_PROXY` is set on the host. Any value that is unset on the host is silently skipped.
+6. Wraps the `claude` binary so Claude Code's project directory is the local copy — all tools (Edit, Read, Glob, Bash) operate on the same files.
+7. Applies network restrictions if `allowed-hosts.txt` exists (with verification).
+8. Runs Claude Code inside the sandbox with `--dangerously-skip-permissions`.
 
 Each run creates a new sandbox with a fully local copy of the repo on its own branch, so multiple sessions can work independently in parallel. On resume, settings and plugins are re-synced from the host.
 
